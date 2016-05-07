@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eclipse-userlibraries>
+  <library name="lucene-analyzers-common-5.1.0">
+    <archive path="/lucene-5.1.0_lib/lucene-analyzers-common-5.1.0.jar" />
+    <archive path="/lucene-5.1.0_lib/lucene-core-5.1.0.jar" />
+    <archive path="/lucene-5.1.0_lib/lucene-demo-5.1.0.jar" />
+    <archive path="/lucene-5.1.0_lib/lucene-queryparser-5.1.0.jar" />
+  </library>
+</eclipse-userlibraries>
+
