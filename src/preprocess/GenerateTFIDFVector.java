@@ -23,6 +23,8 @@ public class GenerateTFIDFVector {
     private int scalingFactor;
 	private String tempUnEncrVectFileName = "unEncrQ.txt";
     private String tempUnEncrBinVectFileName = "unEncrBinQ.txt";
+    //TODO NOTE: This can be a common parameter for both nodes
+    private int minTokenLength = 3;
     EncryptNativeC nativeCGMPCmbndLib;
 
 
@@ -61,6 +63,8 @@ public class GenerateTFIDFVector {
         //String filename = args[1];
 
         String fileName;
+        //TODO NOTE: Important to set the correct minimum token length.
+
         LeafReader indexLeafReader = null;
         double freq = 0, termWt = 0, docMagnitude = 0;
         try {
@@ -100,15 +104,18 @@ public class GenerateTFIDFVector {
         //Here get all the terms in the collection and store their collection level property of the IDFs
         while ( (bytesRef = iGlobalTerm.next())!=null )
         {
-
-            //TODO:REVIEW: Using logarithm of the IDF
-            double IDF = (double) (log((((double) n / (indexLeafReader.docFreq(new Term(contentsFieldName, bytesRef)) + 1))))+1);
-            globalTermIDFTreeMap.put(bytesRef.utf8ToString(), IDF);
-            System.out.println(bytesRef.utf8ToString()+"=="+IDF);
+			if ( bytesRef.utf8ToString().length() >= minTokenLength )
+            {
+            	//TODO:REVIEW: Using logarithm of the IDF
+            	double IDF = (double) (log((((double) n / (indexLeafReader.docFreq(new Term(contentsFieldName, bytesRef)) + 1))))+1);
+            	globalTermIDFTreeMap.put(bytesRef.utf8ToString(), IDF);
+            	System.out.println(bytesRef.utf8ToString()+"=="+IDF);
+			}
         }
         //IDF of entire collection dictionary now stored as a map in termIDFTreeMap
 
         System.out.println("Total number of unique terms found in the index = "+globalTermsSz);
+        System.out.println("Total number of vector dimensions created = "+globalTermIDFTreeMap.size());
         //System.out.println("Size of global termIDFTreeMap = "+globalTermIDFTreeMap.size());
         //printSize(globalTermIDFTreeMap, "globalTermIDFTreeMap");
         //printTerms(indexLeafReader.terms(contentsFieldName));  //Printing the total number of terms within the index
@@ -556,5 +563,36 @@ public class GenerateTFIDFVector {
         return simValue;
 
 
+    }
+
+    TreeSet<DocVectorInfo> setOfClusters;
+
+    int bisectingKMeans(int k, DocVectorInfo entireCollectionD)
+    {
+        int err = 0, i=0, numClusters=0;
+
+        setOfClusters = new TreeSet<DocVectorInfo>();
+        //
+        Set<String> fileNameSet= entireCollectionD.docTFIDFVectorTreeMap.keySet();
+        Iterator<String> fileNameIt = fileNameSet.iterator();
+        DocMagnitudeTreeMap tfidfVector;
+        DocVectorInfo cluster = new DocVectorInfo();
+
+        //Copy the original structure/Collection in default single cluster
+        while(fileNameIt.hasNext())
+        {
+            String fileName = fileNameIt.next();
+            tfidfVector = entireCollectionD.docTFIDFVectorTreeMap.get(fileName);
+            cluster.docTFIDFVectorTreeMap.put(fileName, tfidfVector);
+        }
+        setOfClusters.add(cluster);
+        numClusters = 1;
+        //
+        while(numClusters<=k)
+        {
+
+        }
+
+        return err;
     }
 }
