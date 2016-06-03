@@ -57,12 +57,20 @@ public class GenerateTFIDFVector {
         return (double)(scaledUpTermWeight/scalingFactor/scalingFactor);
     }
 
-    public DocVectorInfo getDocTFIDFVectors(String indexDir) throws IOException {
+    /*queryDocName =
+                        null when you want ot build vectors for all documents
+                        Query File Name Only not including path for building query vector*/
+    public DocVectorInfo getDocTFIDFVectors(String indexDir, String queryDocName) throws IOException {
         // write your code here
         //String indexDir = args[0];
         //String filename = args[1];
 
         String fileName;
+        int buildingVectForAllDoc = 0;
+        if ( queryDocName == null )
+        {
+            buildingVectForAllDoc = 1;
+        }
         //TODO NOTE: Important to set the correct minimum token length.
 
         LeafReader indexLeafReader = null;
@@ -92,7 +100,7 @@ public class GenerateTFIDFVector {
         int n =  indexLeafReader.numDocs();
 
 
-        System.out.println("Total number of indexed documents found = "+n);
+        //System.out.println("Total number of indexed documents found = "+n);
         //#Get the global terms
         Terms globalTerms = indexLeafReader.terms(contentsFieldName);
         long globalTermsSz = globalTerms.size();
@@ -109,7 +117,7 @@ public class GenerateTFIDFVector {
             	//TODO:REVIEW: Using logarithm of the IDF
             	double IDF = (double) (log((((double) n / (indexLeafReader.docFreq(new Term(contentsFieldName, bytesRef)) + 1))))+1);
             	globalTermIDFTreeMap.put(bytesRef.utf8ToString(), IDF);
-            	System.out.println(bytesRef.utf8ToString()+"=="+IDF);
+            	//System.out.println(bytesRef.utf8ToString()+"=="+IDF);
 			}
         }
         //IDF of entire collection dictionary now stored as a map in termIDFTreeMap
@@ -125,90 +133,108 @@ public class GenerateTFIDFVector {
             Document doc = indexLeafReader.document(i);
             IndexableField indexableField = doc.getField(fileNamesFieldName);
             fileName = indexableField.stringValue();
-            System.out.println("#"+(i+1)+">"+fileNamesFieldName+": "+fileName);
-            Fields fields = indexLeafReader.getTermVectors(i);
-            //Iterator<String> docFieldNameIterator =  fields.iterator();
-            Terms locDocTerms = fields.terms(contentsFieldName);
-
-            System.out.println("\t\tTotal number of unique terms in file:" + doc.get("filename") + " = " + locDocTerms.size());
-
-            //Create a treeMap to hold the document's tf-idf vector
-            //First create a vector(TreeMap) equal to the global dictionary size dimensions
-            //Creation can be done initially by copying the globalTermIDF as it is and then multiplying it with TF
-
-            //docTFIDFTermVector is the mapping for the term and its weight(i.e. freq*idf). This gets created
-            //for every document.
-            DocMagnitudeTreeMap docTFIDFTermVector = new DocMagnitudeTreeMap(globalTermIDFTreeMap);
-            docMagnitude = 0;
-            //System.out.println("Size of docTFIDFTermVector = "+docTFIDFTermVector.size());
-            //printSize(docTFIDFTermVector, "docTFIDFTermVector");
-
-            //Looping over all the global space dimensions
-            //TODO: remove this line: TermsEnum termsEnum = locDocTerms.iterator(null);
-            Set<String> globalTermsSet = globalTermIDFTreeMap.keySet();
-            int count = 1;
-
-            Iterator<String> termStrIt = globalTermsSet.iterator();
-            while (termStrIt.hasNext())
+            int buildingQueryVectOnly = 0;
+            if (queryDocName != null)
             {
-
-
-                PostingsEnum postingsEnum;
-                String curTerm = termStrIt.next();
-                Term term = new Term(contentsFieldName, curTerm);
-                postingsEnum = indexLeafReader.postings(term);
-                //String termInDocs = "";
-                //String termInDocsPostingEnumEntry = "";
-
-                int postingEntry = postingsEnum.nextDoc();
-                int postingLstLngth = 0;
-                boolean isTermInDoc = false;
-                freq = 0;
-                while( postingEntry != PostingsEnum.NO_MORE_DOCS )
+                if (queryDocName.compareTo(this.getActualFileName(fileName)) == 0)
                 {
-                    //termInDocs = termInDocs + postingsEnum.docID() + "; ";
-                    //termInDocsPostingEnumEntry  = termInDocsPostingEnumEntry + postingEntry + "; ";
-                    if (postingsEnum.docID() == i )
-                    {
-
-                        //System.out.println("\n\n"+count+"> term = '"+termBytesRef.utf8ToString()+"' :: freq = "+postingsEnum.freq());
-                        freq = postingsEnum.freq();
-                        count=count+1;
-                        isTermInDoc = true;
-
-                    }
-                    postingEntry = postingsEnum.nextDoc();
-                    postingLstLngth++;
+                    buildingQueryVectOnly = 1;
+                    System.out.println("Building Vector for query file!");
                 }
-                termWt = freq*globalTermIDFTreeMap.get(curTerm);
-                //termWt = scaleUpTermWt(termWt);
-                docTFIDFTermVector.put(curTerm, termWt);
-                //Calculating the magnitude for the tfidf vector of the document
-                docMagnitude = docMagnitude + (termWt*termWt);
-
-
-
-                //System.out.println("\n\t\tIndexLeafReader.docFreq = "+indexLeafReader.docFreq(term)+";");
-                //System.out.println("\t\tLucene Int. Documents idx. containing term = "+ termInDocs+"\t\tPostingsEnumLength = "+postingLstLngth);
-                //TODO Remove this line!! //System.out.println("\tTerm Frequency(termInDocsPostingEnumEntry) = "+ termInDocsPostingEnumEntry);
             }
-            //System.out.println(docTFIDFTermVector);
+
+            if ( (buildingQueryVectOnly == 1) || (buildingVectForAllDoc == 1) )
+            {
+                //System.out.println("#"+(i+1)+">"+fileNamesFieldName+": "+fileName);
+                Fields fields = indexLeafReader.getTermVectors(i);
+                //Iterator<String> docFieldNameIterator =  fields.iterator();
+                Terms locDocTerms = fields.terms(contentsFieldName);
+
+                //System.out.println("\t\tTotal number of unique terms in file:" + doc.get("filename") + " = " + locDocTerms.size());
+
+                //Create a treeMap to hold the document's tf-idf vector
+                //First create a vector(TreeMap) equal to the global dictionary size dimensions
+                //Creation can be done initially by copying the globalTermIDF as it is and then multiplying it with TF
+
+                //docTFIDFTermVector is the mapping for the term and its weight(i.e. freq*idf). This gets created
+                //for every document.
+                DocMagnitudeTreeMap docTFIDFTermVector = new DocMagnitudeTreeMap(globalTermIDFTreeMap);
+                docMagnitude = 0;
+                //System.out.println("Size of docTFIDFTermVector = "+docTFIDFTermVector.size());
+                //printSize(docTFIDFTermVector, "docTFIDFTermVector");
+
+                //Looping over all the global space dimensions
+                //TODO: remove this line: TermsEnum termsEnum = locDocTerms.iterator(null);
+                Set<String> globalTermsSet = globalTermIDFTreeMap.keySet();
+                int count = 1;
+
+                Iterator<String> termStrIt = globalTermsSet.iterator();
+                while (termStrIt.hasNext())
+                {
 
 
-            //Put each document's tfidf vector and magnitude in two different TreeMaps - docTFIDFVectorTreeMap and
-            //docMagnitudeTreeMap respectively.
-            docVectorInfo.updateDocVector(fileName, docTFIDFTermVector);
-            //docTFIDFVectorTreeMap.put(fileName, docTFIDFTermVector);
-            docMagnitude = (double)Math.sqrt(docMagnitude);
-            docVectorInfo.updateDocVectorMagnitude(fileName, docMagnitude);
-            //docMagnitudeTreeMap.put(fileName, Math.sqrt(docMagnitude));
-            docVectorInfo.normalizeAndScaleUpVector(fileName, docTFIDFTermVector, globalTermsSet, docMagnitude, scalingFactor);
+                    PostingsEnum postingsEnum;
+                    String curTerm = termStrIt.next();
+                    Term term = new Term(contentsFieldName, curTerm);
+                    postingsEnum = indexLeafReader.postings(term);
+                    //String termInDocs = "";
+                    //String termInDocsPostingEnumEntry = "";
 
-            System.out.println("Doc #" + (i + 1) + " Document magnitude = " + docVectorInfo.docMagnitudeTreeMap.get(fileName) + "\n");
+                    int postingEntry = postingsEnum.nextDoc();
+                    int postingLstLngth = 0;
+                    boolean isTermInDoc = false;
+                    freq = 0;
+                    while (postingEntry != PostingsEnum.NO_MORE_DOCS)
+                    {
+                        //termInDocs = termInDocs + postingsEnum.docID() + "; ";
+                        //termInDocsPostingEnumEntry  = termInDocsPostingEnumEntry + postingEntry + "; ";
+                        if (postingsEnum.docID() == i)
+                        {
+
+                            //System.out.println("\n\n"+count+"> term = '"+termBytesRef.utf8ToString()+"' :: freq = "+postingsEnum.freq());
+                            freq = postingsEnum.freq();
+                            count = count + 1;
+                            isTermInDoc = true;
+
+                        }
+                        postingEntry = postingsEnum.nextDoc();
+                        postingLstLngth++;
+                    }
+                    termWt = freq * globalTermIDFTreeMap.get(curTerm);
+                    //termWt = scaleUpTermWt(termWt);
+                    docTFIDFTermVector.put(curTerm, termWt);
+                    //Calculating the magnitude for the tfidf vector of the document
+                    docMagnitude = docMagnitude + (termWt * termWt);
+
+
+                    //System.out.println("\n\t\tIndexLeafReader.docFreq = "+indexLeafReader.docFreq(term)+";");
+                    //System.out.println("\t\tLucene Int. Documents idx. containing term = "+ termInDocs+"\t\tPostingsEnumLength = "+postingLstLngth);
+                    //TODO Remove this line!! //System.out.println("\tTerm Frequency(termInDocsPostingEnumEntry) = "+ termInDocsPostingEnumEntry);
+                }
+                //System.out.println(docTFIDFTermVector);
+
+
+                //Put each document's tfidf vector and magnitude in two different TreeMaps - docTFIDFVectorTreeMap and
+                //docMagnitudeTreeMap respectively.
+                docVectorInfo.updateDocVector(fileName, docTFIDFTermVector);
+                //docTFIDFVectorTreeMap.put(fileName, docTFIDFTermVector);
+                docMagnitude = (double) Math.sqrt(docMagnitude);
+                docVectorInfo.updateDocVectorMagnitude(fileName, docMagnitude);
+                //docMagnitudeTreeMap.put(fileName, Math.sqrt(docMagnitude));
+                docVectorInfo.normalizeAndScaleUpVector(fileName, docTFIDFTermVector, globalTermsSet, docMagnitude, scalingFactor);
+
+                //System.out.println("Doc #" + (i + 1) + " Document magnitude = " + docVectorInfo.docMagnitudeTreeMap.get(fileName) + "\n");
+
+
+                docVectorInfo.printDocTFIDFVectorTreeMapAndDocMagnitudeTreeMap();
+            }
+             if ( buildingQueryVectOnly == 1 )
+             {
+                 //We have done building the query vector and that was the only task. Now break.
+                 System.out.println("Query Vector Built");
+                 break;
+             }
         }
-
-
-        docVectorInfo.printDocTFIDFVectorTreeMapAndDocMagnitudeTreeMap();
 
         return docVectorInfo;
     }
@@ -268,8 +294,8 @@ public class GenerateTFIDFVector {
                 {bin = 1;}
 
                 fileWriterBin.write(bin+ifNewLine);
-                System.out.println("Added in " + TFIDFVectFileName + "::" + (count+1) + " " + term + ": " + weight);
-                System.out.println("Added in " + BinVectFileName + "::" + (count + 1) + " " + term + ": " + bin);
+                //System.out.println("Added in " + TFIDFVectFileName + "::" + (count+1) + " " + term + ": " + weight);
+                //System.out.println("Added in " + BinVectFileName + "::" + (count + 1) + " " + term + ": " + bin);
                 count++;
             }
 
@@ -336,7 +362,7 @@ public class GenerateTFIDFVector {
             return null;
         }
         //Iterate over all the paths
-        System.out.println("No. of dimensions = " +docVectorInfo.docTFIDFVectorTreeMap.size());
+        //System.out.println("No. of dimensions = " +docVectorInfo.docTFIDFVectorTreeMap.size());
         Set<String> docFileNameSet = docVectorInfo.docTFIDFVectorTreeMap.keySet();
         Iterator<String> docFileNameIt = docFileNameSet.iterator();
 
@@ -365,7 +391,7 @@ public class GenerateTFIDFVector {
             }
 
             //TODO:DBG line follows
-            System.out.println("Adding the TFIDF vectors for document:"+ curDocNameStr+" in "+ newFileNameTFIDF +" and "+newFileNameBin);
+            //System.out.println("Adding the TFIDF vectors for document:"+ curDocNameStr+" in "+ newFileNameTFIDF +" and "+newFileNameBin);
             //Get the iterator to traverse the global term list for this current document.
 
 
@@ -394,7 +420,8 @@ public class GenerateTFIDFVector {
 
         int ret;
 		boolean docPresent = false;
-		if((new File(relFilename).isDirectory()))
+        System.out.println("Encrypting Query Vector and writing it to file ...");
+        if((new File(relFilename).isDirectory()))
 		{
 			Exception e = new Exception("ERROR! Required relative filename given directory, name given:"+relFilename);
 			e.printStackTrace();
@@ -412,7 +439,7 @@ public class GenerateTFIDFVector {
 		//all documents
 		Set<String> globalTermsSet = globalTermIDFTreeMap.keySet();
 		//Iterate over all the paths
-		System.out.println("No. of dimensions = " +docVectorInfo.docTFIDFVectorTreeMap.size());
+		//System.out.println("No. of dimensions = " +docVectorInfo.docTFIDFVectorTreeMap.size());
 		Set<String> docFileNameSet = docVectorInfo.docTFIDFVectorTreeMap.keySet();
 		Iterator<String> docFileNameIt = docFileNameSet.iterator();
 
@@ -424,13 +451,13 @@ public class GenerateTFIDFVector {
 			//Create a filename for file having the document's term vector information.
 
 			//Write the encrypted vectors to file given by relFileName using the C code
-			System.out.println("Indexed file name: "+getActualFileName(curDocNameStr)+" query document name given: "+relFilename);
+			//System.out.println("Indexed file name: "+getActualFileName(curDocNameStr)+" query document name given: "+relFilename);
 			if ( getActualFileName(curDocNameStr).compareTo(relFilename) == 0 )
 			{
 				docPresent = true;
 				//TODO:DBG line follows
-				System.out.println("Adding the TFIDF vectors for document:" + curDocNameStr + " in " + tempUnEncrVectFileName);
-                System.out.println("Adding the Binary vectors for document:" + curDocNameStr + " in " + tempUnEncrBinVectFileName);
+				//System.out.println("Adding the TFIDF vectors for document:" + curDocNameStr + " in " + tempUnEncrVectFileName);
+                //System.out.println("Adding the Binary vectors for document:" + curDocNameStr + " in " + tempUnEncrBinVectFileName);
 
                 //Get the document tfidf term vector contained in the treemap docVectorInfo.docTFIDFVectorTreeMap
                 DocMagnitudeTreeMap docTFIDFVectorTreeMap = docVectorInfo.docTFIDFVectorTreeMap.get(curDocNameStr);
@@ -462,10 +489,11 @@ public class GenerateTFIDFVector {
 			}
 
 		}//
-
+        System.out.println("Encryption and writing of Query Vector completed!");
 		if (!docPresent)
 		{
-			return -1;
+            System.err.println("ERROR! File not present! "+ relFilename);
+            return -1;
 		}
 
 
@@ -480,7 +508,7 @@ public class GenerateTFIDFVector {
         //all documents
         Set<String> globalTermsSet = globalTermIDFTreeMap.keySet();
 
-        System.out.println("Printing back all the contents for file:" + newFileName);
+        //System.out.println("Printing back all the contents for file:" + newFileName);
         File ifp = new File(newFileName);
         FileReader fileReader = new FileReader(ifp);
         BufferedReader bufferedReader = new BufferedReader(fileReader);

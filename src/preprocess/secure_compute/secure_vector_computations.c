@@ -84,7 +84,7 @@ int encrypt_vec_to_file( int vsizelocal, const char * input_file_name, const cha
 
 	strncpy(g_key_file_name, key_file_name, sizeof(g_key_file_name));
 
-	printf("Number of vector dimensions = %d\n", vsizelocal);
+	//printf("Number of vector dimensions = %d\n", vsizelocal);
 	//printf("p_vec2:%p, ENOMEM:%d\n", p_vec2, (errno == ENOMEM)?1:0);
 
 
@@ -138,7 +138,7 @@ int encrypt_vec_to_file( int vsizelocal, const char * input_file_name, const cha
 
 		//temp = (int) temp2;
 		//printf("doc1:: temp2: %" PRId64 ", temp:%d\n", temp2, temp);
-		printf("doc1::Wt:%d\n", temp);
+		//printf("doc1::Wt:%d\n", temp);
 
 		encrypt(*(vec1+input_size), temp);
 		//gmp_printf("No. of chars:%d, BIGNO:%s\n", gmp_sprintf(temp_str, "%Zd", *(vec1+input_size)), temp_str);
@@ -147,8 +147,6 @@ int encrypt_vec_to_file( int vsizelocal, const char * input_file_name, const cha
 		//decrypt(vec1[input_size]);
 		//gmp_printf("%d: %Zd\n", input_size, *(vec1+input_size));
 		fprintf(output_file, "%s", temp_str);
-		fflush(output_file);
-		sync();
 		input_size ++;
 		if ( vsizelocal!=1 && input_size < vsizelocal )
 		{
@@ -161,6 +159,7 @@ int encrypt_vec_to_file( int vsizelocal, const char * input_file_name, const cha
 
 	fclose(input_file);  
 	fflush(output_file);
+	sync();
 	fclose(output_file);
 
 	//release space used by big number variables
@@ -209,7 +208,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 
 	strncpy(g_key_file_name, key_file_name, sizeof(g_key_file_name));
 
-	printf("Number of vector dimensions = %d\n", vsizelocal);
+	//printf("Number of vector dimensions = %d\n", vsizelocal);
 	//printf("p_tfidf_vec:%p, ENOMEM:%d\n", p_tfidf_vec, (errno == ENOMEM)?1:0);
 
 
@@ -220,7 +219,10 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	vec2 = (mpz_t *)malloc(vsizelocal*sizeof(mpz_t));
 	p_tfidf_vec = (int*)malloc(vsize*sizeof(int));
 	p_bin_vec = (int*)malloc(vsize*sizeof(int));
-	printf("p_tfidf_vec:%p, ENOMEM:%d\n", p_tfidf_vec, (errno == ENOMEM)?1:0);
+	if ( errno == ENOMEM )
+	{
+		printf("p_tfidf_vec:%p, ENOMEM:%d\n", p_tfidf_vec, (errno == ENOMEM)?1:0);
+	}
 
 	//initialize vectors and big number variables
 	for (i = 0; i < vsizelocal; i++)
@@ -289,7 +291,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 		{
 			gmp_fscanf(input_encr_tfidf_file,"%Zd\n", (vec1+input_size));
 		}
-		gmp_printf("%d>> READ %Zd\n", input_size+1, *(vec1+input_size));
+		//gmp_printf("%d>> READ %Zd\n", input_size+1, *(vec1+input_size));
 
 		input_size++;
 	}
@@ -311,7 +313,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 		{
 			gmp_fscanf(input_encr_bin_file,"%Zd\n", (vec2+input_size));
 		}
-		gmp_printf("%d>> READ %Zd\n", input_size+1, *(vec2+input_size));
+		//gmp_printf("%d>> READ %Zd\n", input_size+1, *(vec2+input_size));
 
 		input_size++;
 	}
@@ -323,14 +325,14 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	}
 
 
-	printf("\n");
+	//printf("\n");
 	input_size = 0;
 
 	//fill in the second vector
 	for( fscanf(input_tfidf_vec_file,"%d", &temp); temp != EOF && input_size < vsize; 
 			fscanf(input_tfidf_vec_file, "%d", &temp) ){
 
-		printf("Non encrypted TFIDF Input::Wt.:%d\n", temp);
+		//printf("Non encrypted TFIDF Input::Wt.:%d\n", temp);
 		*(p_tfidf_vec + input_size) = temp;
 		input_size ++;
 	} 
@@ -339,7 +341,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	for( fscanf(input_bin_vec_file,"%d", &temp); temp != EOF && input_size < vsize; 
 			fscanf(input_bin_vec_file, "%d", &temp) ){
 
-		printf("Non encrypted Binary Input::Wt.:%d\n", temp);
+		//printf("Non encrypted Binary Input::Wt.:%d\n", temp);
 		*(p_bin_vec + input_size) = temp;
 		input_size ++;
 	} 
@@ -378,16 +380,16 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	mpz_init(dot_prod2);
 	mpz_set(dot_prod, cosine_result);
 	decrypt(dot_prod);
-	gmp_fprintf(stderr, "\n%s:%d:: Query*%s TFIDF cosine product: %Zd\n", __func__, __LINE__, input_encr_tfidf_file_name, dot_prod);
+	//gmp_fprintf(stderr, "\n%s:%d:: Query*%s TFIDF cosine product: %Zd\n", __func__, __LINE__, input_encr_tfidf_file_name, dot_prod);
 
 	mpz_set(dot_prod2, co_ord_factor);
 	decrypt(dot_prod2);
-	gmp_fprintf(stderr, "\n%s:%d:: Query*%s CO-ORD. cosine product: %Zd\n\n", __func__, __LINE__, input_encr_bin_file_name, dot_prod2);
+	//gmp_fprintf(stderr, "\n%s:%d:: Query*%s CO-ORD. cosine product: %Zd\n\n", __func__, __LINE__, input_encr_bin_file_name, dot_prod2);
 
 	mpz_mul(dot_prod2, dot_prod2, dot_prod);
 	mpz_mod(dot_prod2, dot_prod2, n);
-	gmp_fprintf(stderr, "\n\n%s:%d EXPECTED SIMILARITY SCORE = %Zd\n\n", __func__, __LINE__, dot_prod2);
-	fflush(stderr);
+	//gmp_fprintf(stderr, "\n\n%s:%d EXPECTED SIMILARITY SCORE = %Zd\n\n", __func__, __LINE__, dot_prod2);
+	//fflush(stderr);
 
 	mpz_clear(dot_prod);
 	mpz_clear(dot_prod2);
@@ -443,7 +445,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	mpz_out_str(output_file, 10, co_ord_factor_rand);
 	fprintf(output_file, "\n");
 
-	gmp_printf("\nThus similarity of %s and %s score = %Zd written in %s\n", input_encr_tfidf_file_name, input_tfidf_vec_file_name, cosine_result, output_file_name);
+	//gmp_printf("\nThus similarity of %s and %s score = %Zd written in %s\n", input_encr_tfidf_file_name, input_tfidf_vec_file_name, cosine_result, output_file_name);
 #if 0
 	//print the cosine_result
 	if (mpz_out_str(output_file, 10, cosine_result) == 0)
@@ -451,7 +453,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 
 	fprintf(output_file, "\n");
 #endif
-	gmp_printf("\nThus co-ord. factor of %s and %s score = %Zd written in %s\n", input_encr_bin_file_name, input_bin_vec_file_name, co_ord_factor, output_file_name);
+	//gmp_printf("\nThus co-ord. factor of %s and %s score = %Zd written in %s\n", input_encr_bin_file_name, input_bin_vec_file_name, co_ord_factor, output_file_name);
 #if 0
 	//print the co_ord_factor
 	if (mpz_out_str(output_file, 10, co_ord_factor) == 0)
@@ -510,8 +512,8 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	//to file so that it can be used in next phase
 	mpz_out_str(output_file, 10, sum_neg_terms);
 	
-	gmp_fprintf(stderr, "\n%s:%d:: De-randomizing factor: %Zd written"
-	" in file %s\n", __func__, __LINE__, sum_neg_terms, output_file_name);
+	//gmp_fprintf(stderr, "\n%s:%d:: De-randomizing factor: %Zd written"
+	//" in file %s\n", __func__, __LINE__, sum_neg_terms, output_file_name);
 	
 
 	fclose(input_encr_tfidf_file);  
@@ -700,8 +702,8 @@ void init(){
 
 	// Get the values of n and d from already generated file
 	get_n_and_d_from_file();
-	gmp_printf("n read = %Zd\n", n);
-	gmp_printf("d read = %Zd\n", d);
+	//gmp_printf("n read = %Zd\n", n);
+	//gmp_printf("d read = %Zd\n", d);
 
 	mpz_add_ui(n_plus_1, n, 1);
 	mpz_pow_ui(n_square, n, 2);
@@ -789,26 +791,26 @@ int read_decrypt_mul_encrypt_write_encrypted_rand_prod( const char * input_inter
 	gmp_fscanf(input_interm_prods_file, "%Zd", tfidf_prod1);
 	gmp_fscanf(input_interm_prods_file, "%Zd\n", coord_prod2);
 
-	gmp_fprintf(stderr, "TFIDF Product read = %Zd\n\n", tfidf_prod1);
-	gmp_fprintf(stderr, "Co-ord Product read = %Zd\n\n", coord_prod2);
+	//gmp_fprintf(stderr, "TFIDF Product read = %Zd\n\n", tfidf_prod1);
+	//gmp_fprintf(stderr, "Co-ord Product read = %Zd\n\n", coord_prod2);
 
 	//Decrypt both
 	decrypt(tfidf_prod1);
 	decrypt(coord_prod2);
 
-	gmp_fprintf(stderr, "After decrypting, TFIDF Product read = %Zd\n\n", tfidf_prod1);
-	gmp_fprintf(stderr, "After decrypting, Co-ord Product read = %Zd\n\n", coord_prod2);
+	//gmp_fprintf(stderr, "After decrypting, TFIDF Product read = %Zd\n\n", tfidf_prod1);
+	//gmp_fprintf(stderr, "After decrypting, Co-ord Product read = %Zd\n\n", coord_prod2);
 
 
 	//Multiply both
 	mpz_mul(out_enc_ran_prod, tfidf_prod1, coord_prod2);
 	mpz_mod(out_enc_ran_prod, out_enc_ran_prod, n);
 	
-	gmp_fprintf(stderr, "Unencrypted Product = %Zd\n\n", out_enc_ran_prod);
+	//gmp_fprintf(stderr, "Unencrypted Product = %Zd\n\n", out_enc_ran_prod);
 
 	//note obtained product is not encrypted, hence, encrypting it
 	encrypt_big_num(out_enc_ran_prod, out_enc_ran_prod);
-	gmp_fprintf(stderr, "Encrypted Product = %Zd\n\n", out_enc_ran_prod);
+	//gmp_fprintf(stderr, "Encrypted Product = %Zd\n\n", out_enc_ran_prod);
 	gmp_fprintf(output_encrypt_rand_prod_file, "%Zd", out_enc_ran_prod);
 
 	fflush(output_encrypt_rand_prod_file);
@@ -882,13 +884,13 @@ int derandomize_encrypted_sim_prod( const char * input_rand_encr_prod_file_name,
 		fprintf(stderr, "\n%s:%d: ERROR!! Derandomizing factor not read!!\n", __func__, __LINE__);
 		return -5;
 	}
-	gmp_fprintf(stderr, "Derandomizing factor read: %Zd", derandomize_fact);
+	//gmp_fprintf(stderr, "Derandomizing factor read: %Zd", derandomize_fact);
 	//Calculate the E(a*b) by adding(multiplying) the numbers
 	mpz_mul(temp, encr_rand_prod, derandomize_fact);
 	mpz_mod(temp, temp, n_square);
 
 	gmp_fprintf(output_encrypted_sim_val_file, "%Zd", temp);
-	gmp_fprintf(stderr, "\nEncrypted similarity = %Zd\n", temp);
+	//gmp_fprintf(stderr, "\nEncrypted similarity = %Zd\n", temp);
 
 	fflush(output_encrypted_sim_val_file);
 	fclose(input_rand_encr_prod_file);
@@ -942,7 +944,7 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 	gmp_fprintf(output_file, "%Zd", encr_sim_score);
 
 	val = mpz_get_d(encr_sim_score);
-	gmp_fprintf(stderr, "%s:%d: Similarity Score Decrypted = %Zd; after double conversion: %lf\n", __func__, __LINE__, encr_sim_score, val);
+	//gmp_fprintf(stderr, "%s:%d: Similarity Score Decrypted = %Zd; after double conversion: %lf\n", __func__, __LINE__, encr_sim_score, val);
 
 
 	fflush(output_file);
@@ -964,10 +966,10 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 	const char *key_file_name = (*env)->GetStringUTFChars(env, name_key_file, 0);
 
 
-	printf("Number of dimensions:%d\n", vsize);
-	printf("Query's Un-Encrypted vectors stored at: %s\n", ip_file_name);
-	printf("Query's Encrypted vectors stored at: %s\n", op_file_name);
-	printf("Key file used from : %s\n", key_file_name);
+	//printf("Number of dimensions:%d\n", vsize);
+	//printf("Query's Un-Encrypted vectors stored at: %s\n", ip_file_name);
+	//printf("Query's Encrypted vectors stored at: %s\n", op_file_name);
+	//printf("Key file used from : %s\n", key_file_name);
 
 
 	err = encrypt_vec_to_file(vsize, ip_file_name, op_file_name, key_file_name);
@@ -992,13 +994,13 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 	const char *key_file_name 			= (*env)->GetStringUTFChars(env, ip_key_f_name, 0);
 
 
-	printf("Number of dimensions:%d\n", vsize);
-	printf("Query's Encrypted TFIDF vector obtained from client stored at: %s\n", ip_encr_tfidf_q_file);
-	printf("Query's Encrypted binary vector obtained from client stored at: %s\n", ip_encr_bin_q_file);
-	printf("Collection document's unencrypted, scaled tfidf vector stored at: %s\n", ip_unencr_tfidf_file);
-	printf("Collection document's unencrypted, scaled binary vector stored at: %s\n", ip_unencr_bin_file);
-	printf("Output: random nos., encrypted intermediate dot products stored at: %s\n", op_encr_rand_inter_prod_file);
-	printf("Key file used from : %s\n", key_file_name);
+	//printf("Number of dimensions:%d\n", vsize);
+	//printf("Query's Encrypted TFIDF vector obtained from client stored at: %s\n", ip_encr_tfidf_q_file);
+	//printf("Query's Encrypted binary vector obtained from client stored at: %s\n", ip_encr_bin_q_file);
+	//printf("Collection document's unencrypted, scaled tfidf vector stored at: %s\n", ip_unencr_tfidf_file);
+	//printf("Collection document's unencrypted, scaled binary vector stored at: %s\n", ip_unencr_bin_file);
+	//printf("Output: random nos., encrypted intermediate dot products stored at: %s\n", op_encr_rand_inter_prod_file);
+	//printf("Key file used from : %s\n", key_file_name);
 
 
 	//Call the function here

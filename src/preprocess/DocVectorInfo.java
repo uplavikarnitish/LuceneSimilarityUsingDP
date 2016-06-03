@@ -56,7 +56,7 @@ public class DocVectorInfo {
         while( it.hasNext() ) {
             fileName = it.next();
             double magnitude = docMagnitudeTreeMap.get(fileName);
-            System.out.println("#"+(++count)+" fileName:"+fileName+" Magnitude:"+magnitude+" terms=weight:"+docTFIDFVectorTreeMap.get(fileName));
+            //System.out.println("#"+(++count)+" fileName:"+fileName+" Magnitude:"+magnitude+" terms=weight:"+docTFIDFVectorTreeMap.get(fileName));
         }
     }
 
