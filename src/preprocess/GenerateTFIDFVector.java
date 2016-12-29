@@ -59,14 +59,18 @@ public class GenerateTFIDFVector {
 
     /*queryDocName =
                         null when you want ot build vectors for all documents
-                        Query File Name Only not including path for building query vector*/
-    public DocVectorInfo getDocTFIDFVectors(String indexDir, String queryDocName) throws IOException {
+                        Query File Name Only, not including path, for building query vector
+     listOfQueryTerms = if queryDocName is sent then use the global terms list sent by server
+                            to create the query vector*/
+    public DocVectorInfo getDocTFIDFVectors(String indexDir, String queryDocName, LinkedList<String> listOfQueryTerms) throws IOException {
         // write your code here
         //String indexDir = args[0];
         //String filename = args[1];
 
         String fileName;
+        LinkedList<String> listOfGlobalTerms;
         int buildingVectForAllDoc = 0;
+        int buildingQueryVectOnly = 0;
         if ( queryDocName == null )
         {
             buildingVectForAllDoc = 1;
@@ -105,21 +109,51 @@ public class GenerateTFIDFVector {
         Terms globalTerms = indexLeafReader.terms(contentsFieldName);
         long globalTermsSz = globalTerms.size();
 
-        //Fill in all the terms as key into a TreeMap with the corresponding value as a idf
 
-        TermsEnum iGlobalTerm = globalTerms.iterator(null);
-        BytesRef bytesRef;
-        //Here get all the terms in the collection and store their collection level property of the IDFs
-        while ( (bytesRef = iGlobalTerm.next())!=null )
+
+        if ( buildingVectForAllDoc == 1 )
         {
-			if ( bytesRef.utf8ToString().length() >= minTokenLength )
+            //We will create a list of global terms that are candidate for creating the global space character.
+            //This list is made using the local index and typically would be called in the Server context.
+            listOfGlobalTerms = new LinkedList<String>();
+
+            TermsEnum iGlobalTerm = globalTerms.iterator(null);
+            BytesRef bytesRef;
+            //Here get all the terms in the collection and store their collection level property of the IDFs
+            while ((bytesRef = iGlobalTerm.next()) != null)
             {
-            	//TODO:REVIEW: Using logarithm of the IDF
-            	double IDF = (double) (log((((double) n / (indexLeafReader.docFreq(new Term(contentsFieldName, bytesRef)) + 1))))+1);
-            	globalTermIDFTreeMap.put(bytesRef.utf8ToString(), IDF);
-            	//System.out.println(bytesRef.utf8ToString()+"=="+IDF);
-			}
+                listOfGlobalTerms.add(bytesRef.utf8ToString());
+            }
         }
+        else
+        {
+            //This is the client context. The list of global terms, for creating the global vector space representation
+            //of the query document is already provided by the server using the listOfGlobalTerms Linked list.
+            if (listOfQueryTerms == null)
+            {
+                System.err.println("ERROR! For building client vector, list of terms should be passed!");
+                return null;
+            }
+            listOfGlobalTerms = listOfQueryTerms;
+        }
+        //Candidate global terms are listed by listOfGlobalTerms. Note that it cannot be used as final list of global
+        //terms as some terms whose size is below minTokenLength are dropped during the idf map building stage.
+
+        //Fill in all the terms as key into a TreeMap with the corresponding value as a idf
+        Iterator<String> globTermIt = listOfGlobalTerms.iterator();
+        //Create idf map for global terms
+        while ( globTermIt.hasNext() )
+        {
+            String termStr = globTermIt.next();
+            if (termStr.length() >= minTokenLength)
+            {
+                //TODO:REVIEW: Using logarithm of the IDF
+                double IDF = (double) (log((((double) n / (indexLeafReader.docFreq(new Term(contentsFieldName, termStr)) + 1)))) + 1);
+                globalTermIDFTreeMap.put(termStr, IDF);
+                //System.out.println(bytesRef.utf8ToString()+"=="+IDF);
+            }
+        }
+
         //IDF of entire collection dictionary now stored as a map in termIDFTreeMap
 
         System.out.println("Total number of unique terms found in the index = "+globalTermsSz);
@@ -133,7 +167,7 @@ public class GenerateTFIDFVector {
             Document doc = indexLeafReader.document(i);
             IndexableField indexableField = doc.getField(fileNamesFieldName);
             fileName = indexableField.stringValue();
-            int buildingQueryVectOnly = 0;
+            buildingQueryVectOnly = 0;
             if (queryDocName != null)
             {
                 if (queryDocName.compareTo(this.getActualFileName(fileName)) == 0)
@@ -237,6 +271,21 @@ public class GenerateTFIDFVector {
         }
 
         return docVectorInfo;
+    }
+
+    public Set<String> getSetOfGlobalTerms()
+    {
+        if ( (globalTermIDFTreeMap!=null) &&
+                (globalTermIDFTreeMap.size()<=0) )
+        {
+            Exception e = new Exception("ERROR!! Global terms map not created yet!");
+            e.printStackTrace();
+            return null;
+        }
+        else
+        {
+            return globalTermIDFTreeMap.keySet();
+        }
     }
 
     private static void printSize(Object a, String msg)
@@ -414,7 +463,7 @@ public class GenerateTFIDFVector {
 
 
 	/*
-	* Takes path as input and writes document vector for the file  to directory given by path
+	* Takes path as input and writes the encrypted document vector for the file to directory given by path.
 	* */
 	public int writeDocVectorToFile(String relFilename, String outputEncrTFIDFVecFile, String outputEncrBinVecFile, String keyFileName) throws IOException {
 
