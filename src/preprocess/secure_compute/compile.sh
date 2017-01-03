@@ -18,11 +18,11 @@ echo "====START====";
 #echo "-------------";
 #cat $3
 #echo "-------------";
-gcc -I/usr/java/jdk1.8.0_45/include  -I/usr/java/jdk1.8.0_45/include/linux -lgmp -c -Wall -Werror -fpic $SOURCE ;
+gcc -I$JDK_HOME/include  -I$JDK_HOME/include/linux -lgmp -c -Wall -Werror -fpic $SOURCE ;
 echo "-------------";
-gcc -I/usr/java/jdk1.8.0_45/include  -I/usr/java/jdk1.8.0_45/include/linux -lgmp -shared -o $LIBRARYNAME $OBJECTFILE ;
+gcc -I$JDK_HOME/include  -I$JDK_HOME/include/linux -lgmp -shared -o $LIBRARYNAME $OBJECTFILE ;
 echo "-------------";
-gcc -L/home/nuplavikar/IdeaProjects/LuceneSimilarityUsingDP/src/preprocess/secure_compute  -I/usr/java/jdk1.8.0_45/include  -I/usr/java/jdk1.8.0_45/include/linux -lgmp -Wall -o test main.c -l$OUTPUT ;
+gcc -L/home/nuplavikar/IdeaProjects/LuceneSimilarityUsingDP/src/preprocess/secure_compute  -I$JDK_HOME/include  -I$JDK_HOME/include/linux -lgmp -Wall -o test main.c -l$OUTPUT ;
 echo "-------------";
 echo $LD_LIBRARY_PATH
 echo "-------------";
