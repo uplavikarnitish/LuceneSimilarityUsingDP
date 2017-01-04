@@ -1070,3 +1070,20 @@ JNIEXPORT jdouble JNICALL Java_preprocess_EncryptNativeC_decrypt_1sim_1score
 	return err;
   }
 
+JNIEXPORT jint JNICALL Java_preprocess_EncryptNativeC_test_func
+  (JNIEnv *env, jobject obj, jint test_no)
+  {
+  	double err = -1;
+
+	mpz_t a;
+	mpz_init(a);
+
+	mpz_set_ui(a, test_no);
+	printf("\nWorking! Test number: %d\n", test_no);
+	gmp_printf("\nWorking! Big number: %Zd\n", a);
+	mpz_clear(a);
+	err = 0;
+
+
+	return err;
+  }

@@ -1,5 +1,6 @@
 package preprocess;
 
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -22,4 +23,10 @@ public class DocMagnitudeTreeMap extends TreeMap<String, Double>
 	{
 		return super.put(key, value);
 	}
+
+	public Set<String> getSetOfTerms()
+	{
+		return this.keySet();
+	}
+	//No need to have a new method which just calls the super's get method.
 }
