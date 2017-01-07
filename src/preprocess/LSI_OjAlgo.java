@@ -8,6 +8,7 @@ import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.matrix.store.PrimitiveDenseStore;
 
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Set;
 
 /**
@@ -20,11 +21,16 @@ import java.util.Set;
 public class LSI_OjAlgo
 {
     PrimitiveDenseStore C = null;
-    int m;  //rowCount - Terms
-    int n;  //columnCount - Documents
+    long m;  //rowCount - Terms
+    long n;  //columnCount - Documents
+    long k;  //Reduced m after using SVD and k-approximation; only used in client context
+
+    boolean clientContext = false;
+
     boolean CFilled = false;
     boolean SVDComputed = false;
     boolean kRankApprox = false;
+    PhysicalStore.Factory<Double, PrimitiveDenseStore> doublePrimitiveDenseStoreFactory;
 
 
     MatrixStore<Double> U;
@@ -35,18 +41,83 @@ public class LSI_OjAlgo
     PrimitiveDenseStore V_k;
     MatrixStore T;
 
-    public LSI_OjAlgo(int m, int n)
+    public void setPhysicalStore()
     {
-        //Create a Physical store factory. Using this factory we will allocate space to store the original
-        //high-dimensional term-document matrix C
-        final PhysicalStore.Factory<Double, PrimitiveDenseStore> doublePrimitiveDenseStoreFactory = PrimitiveDenseStore.FACTORY;
+        doublePrimitiveDenseStoreFactory = PrimitiveDenseStore.FACTORY;
         //Actual allocation of matrix of size m x n, m: number of terms, n: number of documents
-        C = doublePrimitiveDenseStoreFactory.makeZero(m, n);
         this.m = m;
         this.n = n;
+    }
 
+    public int setm(long m)
+    {
+        this.m = m;
+        return 0;
+    }
+
+    public int setn(long n)
+    {
+        this.n = n;
+        return 0;
+    }
+
+    public int setk(long k)
+    {
+        this.k = k;
+        return 0;
+    }
+
+    public long getm()
+    {
+        return m;
+    }
+
+    public long getn()
+    {
+        return n;
+    }
+
+    public long getk()
+    {
+        return k;
+    }
+
+    public PrimitiveDenseStore getZeroedOutPrimDensStore(long m, long n)
+    {
+        PrimitiveDenseStore primDensDouble = null;
+        if ( doublePrimitiveDenseStoreFactory != null )
+        {
+            doublePrimitiveDenseStoreFactory.makeZero(m, n);
+        }
+        else
+        {
+            System.err.println("Cannot allocate from physical store factory");
+        }
+        return primDensDouble;
+    }
+
+    public LSI_OjAlgo(int m, int n)
+    {
+        //This constructor would only be called during server context
+        this.clientContext = false;
+        //Create a Physical store factory. Using this factory we will allocate space to store the original
+        //high-dimensional term-document matrix C
+        setPhysicalStore();
+        setm(m);
+        setn(n);
+        setk(-1);   //Not using this in server context
+        C = getZeroedOutPrimDensStore(m, n);
 
         //TODO: Release unused rows from C after k-estimation
+    }
+
+    public LSI_OjAlgo(int m, int n, int k)
+    {
+        this.clientContext = true;
+        setPhysicalStore();
+        setm(m);
+        setn(n);
+        setk(k);   //Not using this in server context only for client context
     }
 
     int populateTermDocMatrix(CollectionTFIDFVects collectionTFIDFVects, Set<String> setOfGlobalTerms)
@@ -340,5 +411,39 @@ public class LSI_OjAlgo
         //DBG System.out.println("Truncated prim. dense store: row:"+rowCnt+" columns:"+colCnt);
 
         return truncatedPrimitiveDenseStore;
+    }
+
+
+    public LinkedList getMatrixRow(String matrixType, long rowNo)
+    {
+        LinkedList rowInList;
+        long noCol, i;
+        switch (matrixType)
+        {
+            case "TruncatedU_k":
+
+                if ( this.kRankApprox == false )
+                {
+                    System.err.println("ERROR!!! U_k not generated yet! Matrix approx. not performed yet!");
+                    return null;
+                }
+                rowInList = new LinkedList<Double>();
+                noCol = this.U_k.countColumns();
+                if ( (rowNo<0) || (rowNo>= U_k.countRows()) )
+                {
+                    System.err.println("U_k[row:0, ...,"+(U_k.countRows()-1)+"] requested row:"+rowNo);
+                    return null;
+                }
+                for ( i=0; i<noCol; i++ )
+                {
+                    rowInList.add(U_k.get(rowNo, i));
+                }
+                break;
+
+            default:
+                System.err.println("ERROR!!! Unrecognized matrix type");
+                return null;
+        }
+        return rowInList;
     }
 }

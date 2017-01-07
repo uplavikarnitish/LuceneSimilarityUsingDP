@@ -28,6 +28,8 @@ public class GenerateTFIDFVector {
     //TODO NOTE: This can be a common parameter for both nodes
     private int minTokenLength = 3;
     EncryptNativeC nativeCGMPCmbndLib;
+    LSI_OjAlgo lsi;
+    boolean useLSI = false;
 
 
 	public GenerateTFIDFVector()
@@ -64,12 +66,12 @@ public class GenerateTFIDFVector {
                         Query File Name Only, not including path, for building query vector
      listOfQueryTerms = if queryDocName is sent then use the global terms list sent by server
                             to create the query vector*/
-    public CollectionLevelInfo getDocTFIDFVectors(String indexDir, String queryDocName, LinkedList<String> listOfQueryTerms) throws IOException {
+    public CollectionLevelInfo getDocTFIDFVectors(String indexDir, String queryDocName, LinkedList<String> listOfQueryTerms, long k, boolean useLSI, LinkedList<LinkedList<Double>> listFormOfU_k) throws IOException {
         // write your code here
         //String indexDir = args[0];
         //String filename = args[1];
 
-        boolean useLSI = true;
+        this.useLSI = useLSI;
 
         String fileName;
         LinkedList<String> listOfGlobalTerms;
@@ -284,14 +286,25 @@ public class GenerateTFIDFVector {
         if ( (useLSI == true) && (buildingVectForAllDoc == 1) )
         {
             //Enter only during server context
-            LSI_OjAlgo lsi = new LSI_OjAlgo(m, n);
+            lsi = new LSI_OjAlgo(m, n);
             lsi.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
             lsi.printTermDocMatrix();
             lsi.computeDecomposition();
-            lsi.computeKRankApproximation(2);
+            lsi.computeKRankApproximation(k);
+        }
+        else if ( (useLSI == true) && (buildingQueryVectOnly == 1) )
+        {
+            System.out.println("Received the list for of U_K from peer into library now ...");
+            System.out.println("Received matrix dim:"+listFormOfU_k.size()+" x "+ listFormOfU_k.get(0).size());
+
         }
 
         return collectionLevelInfo;
+    }
+
+    public LinkedList getRowOfMatrix ( String matrixName, long rowIndex )
+    {
+        return ( this.lsi.getMatrixRow(matrixName, rowIndex) );
     }
 
     /*
