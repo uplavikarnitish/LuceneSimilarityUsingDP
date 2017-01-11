@@ -66,7 +66,9 @@ public class GenerateTFIDFVector {
                         Query File Name Only, not including path, for building query vector
      listOfQueryTerms = if queryDocName is sent then use the global terms list sent by server
                             to create the query vector*/
-    public CollectionLevelInfo getDocTFIDFVectors(String indexDir, String queryDocName, LinkedList<String> listOfQueryTerms, long k, boolean useLSI, LinkedList<LinkedList<Double>> listFormOfU_k) throws IOException {
+    public CollectionLevelInfo getDocTFIDFVectors(String indexDir, String queryDocName,
+                                                  LinkedList<String> listOfQueryTerms, long k, boolean useLSI,
+                                                  LinkedList<LinkedList<Double>> listFormOfU_k) throws IOException {
         // write your code here
         //String indexDir = args[0];
         //String filename = args[1];
@@ -280,6 +282,7 @@ public class GenerateTFIDFVector {
             {
                 //We have done building the query vector and that was the only task. Now break.
                 System.out.println("Query Vector Built");
+                n = 1;//IMPORTANT: if support for multiple documents is added then this value needs to be modified
                 break;
             }
         }
@@ -294,8 +297,19 @@ public class GenerateTFIDFVector {
         }
         else if ( (useLSI == true) && (buildingQueryVectOnly == 1) )
         {
-            System.out.println("Received the list for of U_K from peer into library now ...");
+            System.out.println("Received the list for creation of U_K from peer into library now ...");
             System.out.println("Received matrix dim:"+listFormOfU_k.size()+" x "+ listFormOfU_k.get(0).size());
+            lsi = new LSI_OjAlgo(m, n, k);
+            lsi.buildU_kForClient(listFormOfU_k);//TODO add return value checks
+            if ( (collectionLevelInfo.getNumOfDocs() != 1) || (n != 1)) //NOTE: can be a global parameter/constant
+            {
+                System.err.println("ERROR! Only one query document supported as a query at this moment! n:"+n);
+                System.err.println("Number of docs. in this context[client] expected:1, present:"+collectionLevelInfo.getNumOfDocs());
+                return null;
+            }
+            lsi.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
+            lsi.getReducedDimQuery();
+
 
         }
 

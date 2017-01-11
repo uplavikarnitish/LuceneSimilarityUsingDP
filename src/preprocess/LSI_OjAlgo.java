@@ -87,7 +87,7 @@ public class LSI_OjAlgo
         PrimitiveDenseStore primDensDouble = null;
         if ( doublePrimitiveDenseStoreFactory != null )
         {
-            doublePrimitiveDenseStoreFactory.makeZero(m, n);
+            primDensDouble = doublePrimitiveDenseStoreFactory.makeZero(m, n);
         }
         else
         {
@@ -105,21 +105,57 @@ public class LSI_OjAlgo
         setPhysicalStore();
         setm(m);
         setn(n);
-        setk(-1);   //Not using this in server context
+        setk(-1);   //Would be set and used later in this.computeKRankApproximation()
         C = getZeroedOutPrimDensStore(m, n);
 
         //TODO: Release unused rows from C after k-estimation
     }
 
-    public LSI_OjAlgo(int m, int n, int k)
+    public LSI_OjAlgo(long m, long n, long k)
     {
         this.clientContext = true;
         setPhysicalStore();
         setm(m);
         setn(n);
-        setk(k);   //Not using this in server context only for client context
+        setk(k);
+        U_k = null;
+        C = getZeroedOutPrimDensStore(m, 1);//C will store query vector as a column vector[m x 1]
     }
 
+    public int buildU_kForClient(LinkedList<LinkedList<Double>> U_kAdjList)
+    {
+        int ret = 0;
+        long rowCnt = 0, colCnt = 0;
+
+        if (U_k == null)
+        {
+            U_k = getZeroedOutPrimDensStore(getm(), getk());
+        }
+
+        if ( (getm() != U_kAdjList.size()) || ( getk() != U_kAdjList.get(0).size() ) )
+        {
+            System.err.println("ERROR! Dimensions of U_k adj. list does not match with that of Primitive dense store " +
+                    "matrix! ["+U_kAdjList.size()+", "+U_kAdjList.get(0).size()+"] != ["+getm()+", "+getk()+"]");
+            return -1;
+        }
+
+        Iterator<LinkedList<Double>> rowIt= U_kAdjList.iterator();
+        while ( rowIt.hasNext() )
+        {
+            LinkedList<Double> rowList = rowIt.next();
+            Iterator<Double> doubleIt = rowList.iterator();
+            colCnt = 0;
+            while ( doubleIt.hasNext() )
+            {
+                U_k.set(rowCnt, colCnt, doubleIt.next());
+                colCnt++;
+            }
+            rowCnt++;
+        }
+        System.out.println("Populated prim. den. store U_k for lsi: "+U_k);
+
+        return ret;
+    }
     int populateTermDocMatrix(CollectionTFIDFVects collectionTFIDFVects, Set<String> setOfGlobalTerms)
     {
         if ( C == null )
@@ -200,9 +236,49 @@ public class LSI_OjAlgo
         {
             System.err.println("ERROR!!! While filling-in the term-document matrix C, <rows, cols>("+termNo+", "+docNo+
                     ") out of ("+m+", "+n+", "+docNo+") filled");
+            return -1;
         }
+        //else
+        //{
+            //System.out.println("C["+C.countRows()+" x "+C.countColumns()+"] matrix populated!!!");
+        //}
         CFilled = true;
         return 0;
+    }
+
+    int getReducedDimQuery()
+    {
+        int err = 0;
+        //m dimensional query is in C
+        if ( C.countColumns() != 1 )
+        {
+            System.err.println("ERROR!!! As of now only one query document is supported!");
+            return -1;
+        }
+        if ( (C.countRows() != U_k.countRows()) )
+        {
+            System.err.println("ERROR! Dimensions do not match for matrix multiplication " +
+                    returnDimString(C.countRows(), C.countColumns())+"^T X " +
+                    returnDimString(U_k.countRows(), U_k.countColumns()));
+            return -2;
+        }
+        MatrixStore<Double> c_trans = C.transpose();//MatrixStore<Double>
+        MatrixStore<Double> Q_k_scaled = c_trans.multiply(U_k);//dimensions should be 1 x k
+        System.out.println("Q_k_scaled computed: Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(Q_k_scaled));
+        System.out.println(Q_k_scaled);
+
+
+        return err;
+    }
+
+    public String returnDimString( long row, long col )
+    {
+        return "["+row+" x "+col+"]";
+    }
+
+    public String returnDimString( MatrixStore<Double> mat )
+    {
+        return returnDimString(mat.countRows(), mat.countColumns());
     }
 
 
@@ -269,7 +345,8 @@ public class LSI_OjAlgo
             System.err.println("ERROR!!! Please compute the SVD first");
             return -2;
         }
-        if ( k >= Sigma.countRows() )
+        this.setk(k);
+        if ( this.getk() > Sigma.countRows() )
         {
             System.err.println("WARNING! current rank:"+Sigma.countRows()+" requested reduced rank k:"+k);
             return 0;
@@ -294,6 +371,7 @@ public class LSI_OjAlgo
         //Sigma_k: k x k
         //U_k: m x k
         //V_k: n x k
+        System.out.println("U_k:"+U_k);
         System.out.println("V_k:"+V_k);
 
         //Computing the scaled-up document matrix (V_k x Sigma_k)
