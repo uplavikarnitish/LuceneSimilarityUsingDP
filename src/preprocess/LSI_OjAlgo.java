@@ -26,6 +26,7 @@ public class LSI_OjAlgo
     long k;  //Reduced m after using SVD and k-approximation; only used in client context
 
     boolean clientContext = false;
+    boolean forBinaryVector = false;
 
     boolean CFilled = false;
     boolean SVDComputed = false;
@@ -96,7 +97,8 @@ public class LSI_OjAlgo
         return primDensDouble;
     }
 
-    public LSI_OjAlgo(int m, int n)
+    //TODO create an interface for this class to incorporate binary matrix creation functionality
+    public LSI_OjAlgo(int m, int n, boolean forBinaryVector)
     {
         //This constructor would only be called during server context
         this.clientContext = false;
@@ -106,12 +108,14 @@ public class LSI_OjAlgo
         setm(m);
         setn(n);
         setk(-1);   //Would be set and used later in this.computeKRankApproximation()
+        //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
+        this.forBinaryVector = forBinaryVector;
         C = getZeroedOutPrimDensStore(m, n);
 
         //TODO: Release unused rows from C after k-estimation
     }
 
-    public LSI_OjAlgo(long m, long n, long k)
+    public LSI_OjAlgo(long m, long n, long k, boolean forBinaryVector)
     {
         this.clientContext = true;
         setPhysicalStore();
@@ -119,6 +123,8 @@ public class LSI_OjAlgo
         setn(n);
         setk(k);
         U_k = null;
+        //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
+        this.forBinaryVector = forBinaryVector;
         C = getZeroedOutPrimDensStore(m, 1);//C will store query vector as a column vector[m x 1]
     }
 
@@ -223,7 +229,23 @@ public class LSI_OjAlgo
                     }
                     return -4;
                 }
-                C.set(termNo, docNo, termWeight);
+                if ( forBinaryVector == true )
+                {
+                    if ( termWeight == 0 )
+                    {
+                        //put a 0 against it
+                        C.set(termNo, docNo, 0.0);
+                    }
+                    else
+                    {
+                        //put 1 instead of termWeight, indicating incidence between term and document
+                        C.set(termNo, docNo, 1);
+                    }
+                }
+                else
+                {
+                    C.set(termNo, docNo, termWeight);
+                }
                 //increment the row number i.e. the term count
                 termNo++;
             }
@@ -264,7 +286,7 @@ public class LSI_OjAlgo
         }
         MatrixStore<Double> c_trans = C.transpose();//MatrixStore<Double>
         MatrixStore<Double> Q_k_scaled = c_trans.multiply(U_k);//dimensions should be 1 x k
-        System.out.println("Q_k_scaled computed: Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(Q_k_scaled));
+        System.out.println("Q_k_scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(Q_k_scaled));
         System.out.println(Q_k_scaled);
 
 
@@ -363,25 +385,26 @@ public class LSI_OjAlgo
         U = null;
         V = null;
 
+        String whetherBinary = "\t Is binary type?:"+forBinaryVector;
         System.out.println("k = "+k);
-        System.out.println("Sigma_k dimensions:"+Sigma_k.countRows()+" x "+Sigma_k.countColumns());
-        System.out.println("U_k dimensions:"+U_k.countRows()+" x "+U_k.countColumns());
-        System.out.println("V_k dimensions:"+V_k.countRows()+" x "+V_k.countColumns());
+        System.out.println("Sigma_k dimensions:"+Sigma_k.countRows()+" x "+Sigma_k.countColumns()+whetherBinary);
+        System.out.println("U_k dimensions:"+U_k.countRows()+" x "+U_k.countColumns()+whetherBinary);
+        System.out.println("V_k dimensions:"+V_k.countRows()+" x "+V_k.countColumns()+whetherBinary);
         //After truncation, sizes of the matrices are:
         //Sigma_k: k x k
         //U_k: m x k
         //V_k: n x k
-        System.out.println("U_k:"+U_k);
-        System.out.println("V_k:"+V_k);
+        System.out.println("U_k:"+whetherBinary+U_k);
+        System.out.println("V_k:"+whetherBinary+V_k);
 
         //Computing the scaled-up document matrix (V_k x Sigma_k)
         T = V_k.multiply(Sigma_k);
         //MatrixStore T = V_k;
 
-        System.out.println("T:"+T);
+        System.out.println("T:"+whetherBinary+T);
 
         //Computing similarity
-        int queryDocNum = 1;    //1 - second one
+        int queryDocNum = 3;    //1 - second one
         Access1D<Double> query = T.sliceRow(queryDocNum, 0);
         System.out.println("queryDocNum:"+queryDocNum+"\t\tquery:"+query);
 

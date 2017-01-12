@@ -29,6 +29,7 @@ public class GenerateTFIDFVector {
     private int minTokenLength = 3;
     EncryptNativeC nativeCGMPCmbndLib;
     LSI_OjAlgo lsi;
+    LSI_OjAlgo lsi_bin;
     boolean useLSI = false;
 
 
@@ -68,7 +69,8 @@ public class GenerateTFIDFVector {
                             to create the query vector*/
     public CollectionLevelInfo getDocTFIDFVectors(String indexDir, String queryDocName,
                                                   LinkedList<String> listOfQueryTerms, long k, boolean useLSI,
-                                                  LinkedList<LinkedList<Double>> listFormOfU_k) throws IOException {
+                                                  LinkedList<LinkedList<Double>> listFormOfU_k,
+                                                  LinkedList<LinkedList<Double>> listFormOfU_k_bin) throws IOException {
         // write your code here
         //String indexDir = args[0];
         //String filename = args[1];
@@ -289,17 +291,26 @@ public class GenerateTFIDFVector {
         if ( (useLSI == true) && (buildingVectForAllDoc == 1) )
         {
             //Enter only during server context
-            lsi = new LSI_OjAlgo(m, n);
+            //For obtaining LSI of TFIDF term-document matrix
+            lsi = new LSI_OjAlgo(m, n, false);
             lsi.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
             lsi.printTermDocMatrix();
             lsi.computeDecomposition();
             lsi.computeKRankApproximation(k);
+
+            //For obtaining LSI of binary term-document matrix
+            lsi_bin = new LSI_OjAlgo(m, n, true);
+            lsi_bin.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
+            lsi_bin.printTermDocMatrix();
+            lsi_bin.computeDecomposition();
+            lsi_bin.computeKRankApproximation(k);
         }
         else if ( (useLSI == true) && (buildingQueryVectOnly == 1) )
         {
-            System.out.println("Received the list for creation of U_K from peer into library now ...");
+            //For tfidf
+            System.out.println("Received the list for creation of U_k from peer into library now ...");
             System.out.println("Received matrix dim:"+listFormOfU_k.size()+" x "+ listFormOfU_k.get(0).size());
-            lsi = new LSI_OjAlgo(m, n, k);
+            lsi = new LSI_OjAlgo(m, n, k, false);
             lsi.buildU_kForClient(listFormOfU_k);//TODO add return value checks
             if ( (collectionLevelInfo.getNumOfDocs() != 1) || (n != 1)) //NOTE: can be a global parameter/constant
             {
@@ -311,14 +322,42 @@ public class GenerateTFIDFVector {
             lsi.getReducedDimQuery();
 
 
+            //For binary
+            System.out.println("Received the list for creation of U_k_bin from peer into library now ...");
+            System.out.println("Received matrix dim:"+listFormOfU_k_bin.size()+" x "+ listFormOfU_k_bin.get(0).size());
+            lsi_bin = new LSI_OjAlgo(m, n, k, true);
+            lsi_bin.buildU_kForClient(listFormOfU_k_bin);//TODO add return value checks
+            if ( (collectionLevelInfo.getNumOfDocs() != 1) || (n != 1)) //NOTE: can be a global parameter/constant
+            {
+                System.err.println("ERROR! Only one query document supported as a query at this moment! n:"+n);
+                System.err.println("Number of docs. in this context[client] expected:1, present:"+collectionLevelInfo.getNumOfDocs());
+                return null;
+            }
+            //The populate function will compute the binary query vector using the TFIDF query vector as the flag
+            //forBinaryVector has been set as seen in constructor for lsi_bin
+            lsi_bin.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
+            lsi_bin.getReducedDimQuery();
         }
 
         return collectionLevelInfo;
     }
 
-    public LinkedList getRowOfMatrix ( String matrixName, long rowIndex )
+    public LinkedList getRowOfMatrix ( String matrixType, String matrixName, long rowIndex )
     {
-        return ( this.lsi.getMatrixRow(matrixName, rowIndex) );
+        LinkedList retList;
+        switch (matrixType)
+        {
+            case "TFIDF_matrix_system":
+                retList = this.lsi.getMatrixRow(matrixName, rowIndex);
+                break;
+            case "Bin_matrix_system":
+                retList = this.lsi_bin.getMatrixRow(matrixName, rowIndex);
+                break;
+            default:
+                System.err.println("ERROR! Invalid matrix system specified");
+                retList = null;
+        }
+        return retList;
     }
 
     /*

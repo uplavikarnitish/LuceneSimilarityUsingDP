@@ -14,6 +14,7 @@ public class CollectionLevelInfo
     //This should be returned and is important. It stores the "fileId" as key and another treemap<String, float> for
     //<global terms, weights>, where weights is a combination of TF and IDF, as value
     public CollectionTFIDFVects docTFIDFVectorTreeMap;
+    public CollectionTFIDFVects docBinVectorTreeMap;
 
     //This stores the "fileId" as key and
     //vector magnitude
@@ -22,6 +23,7 @@ public class CollectionLevelInfo
     public CollectionLevelInfo()
     {
         docTFIDFVectorTreeMap = new CollectionTFIDFVects();
+        docBinVectorTreeMap = new CollectionTFIDFVects();
         docMagnitudeTreeMap = new DocMagnitudeTreeMap();
     }
 
