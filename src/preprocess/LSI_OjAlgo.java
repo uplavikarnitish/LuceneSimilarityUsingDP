@@ -7,6 +7,9 @@ import org.ojalgo.matrix.store.MatrixStore;
 import org.ojalgo.matrix.store.PhysicalStore;
 import org.ojalgo.matrix.store.PrimitiveDenseStore;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Set;
@@ -546,5 +549,77 @@ public class LSI_OjAlgo
                 return null;
         }
         return rowInList;
+    }
+    /*For the given file name index, write the entire k dimensional row to the file*/
+    public int createTFIDFAndBinaryVectFile(long rowIndex, long k, String TFIDFVectFileName, String BinVectFileName)
+    {
+        int err = 0;
+        MatrixStore matrixStore;    //References the matrix/row vector to be written depending on clientContext or not
+        if ( clientContext == false )
+        {
+            //We are writing one of the indexed document in two documents tfidf and binary
+            matrixStore = T;
+        }
+        else
+        {
+            //We are writing one of the indexed document in two documents tfidf and binary - query is in C as row vector
+            matrixStore = C;
+        }
+        if ( rowIndex >=  matrixStore.countRows())
+        {
+            System.err.println("ERROR!!! Given rowIndex:"+rowIndex+" is out of bounds! Actual rows:"+matrixStore.countRows());
+            return -1;
+        }
+        //File open
+        File fp = new File(TFIDFVectFileName);
+        File fp_bin = new File(BinVectFileName);
+        FileWriter fileWriter = null;
+        try
+        {
+            fileWriter = new FileWriter(fp);
+
+            FileWriter fileWriterBin = new FileWriter(fp_bin);
+
+
+            int count = 0;
+
+            while(termStrIt.hasNext())
+            {
+                String term = termStrIt.next();
+                String ifNewLine = "";
+                int bin;
+                double weight = docWeightInfo.get(term);
+                if ((dictionary.size()!=1) && (count < dictionary.size() - 1) )
+                {
+                    ifNewLine = "\n";
+                }
+                fileWriter.write(((int) weight) + ifNewLine);
+                if (weight == 0)
+                {bin = 0;}
+                else
+                {bin = 1;}
+
+                fileWriterBin.write(bin+ifNewLine);
+                //System.out.println("Added in " + TFIDFVectFileName + "::" + (count+1) + " " + term + ": " + weight);
+                //System.out.println("Added in " + BinVectFileName + "::" + (count + 1) + " " + term + ": " + bin);
+                count++;
+            }
+
+            //Flush and close the file
+            fileWriter.flush();
+            fileWriterBin.flush();
+            fileWriter.close();
+            fileWriterBin.close();
+
+            //TODO: Remove debug statements below
+            //printDocTermVectors(TFIDFVectFileName);
+            //printDocTermVectors(BinVectFileName);
+            //System.out.println("\n\n");
+        } catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+
+        return err;
     }
 }

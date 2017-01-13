@@ -723,6 +723,9 @@ public class GenerateTFIDFVector {
         //System.out.println("No. of dimensions = " +collectionLevelInfo.docTFIDFVectorTreeMap.size());
         Set<String> docFileNameSet = collectionLevelInfo.docTFIDFVectorTreeMap.getSetOfFileNames();
         Iterator<String> docFileNameIt = docFileNameSet.iterator();
+        //Check if no. of documents in matrices(column nos) is the same for the actual number of documents - lsi
+
+        //Counter to map the filename and its index in T lsi matrix - lsi
 
         while(docFileNameIt.hasNext())
         {
