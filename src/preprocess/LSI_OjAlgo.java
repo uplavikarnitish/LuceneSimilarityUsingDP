@@ -34,6 +34,7 @@ public class LSI_OjAlgo
     boolean CFilled = false;
     boolean SVDComputed = false;
     boolean kRankApprox = false;
+    boolean scaledupTermVectComputed = false;
     PhysicalStore.Factory<Double, PrimitiveDenseStore> doublePrimitiveDenseStoreFactory;
 
 
@@ -43,7 +44,8 @@ public class LSI_OjAlgo
     PrimitiveDenseStore Sigma_k;
     PrimitiveDenseStore U_k;
     PrimitiveDenseStore V_k;
-    MatrixStore T;
+    MatrixStore<Double> T;//For server: stores the k approx. scaled up doc. matrix[n x k]. For client: stores the k approx.
+    // scaled up query(doc.) matrix[1 x k]
 
     public void setPhysicalStore()
     {
@@ -162,6 +164,8 @@ public class LSI_OjAlgo
             rowCnt++;
         }
         System.out.println("Populated prim. den. store U_k for lsi: "+U_k);
+        SVDComputed = true;
+        kRankApprox = true;
 
         return ret;
     }
@@ -270,33 +274,74 @@ public class LSI_OjAlgo
         CFilled = true;
         return 0;
     }
-
+    //Gets called only during client context
     int getReducedDimQuery()
     {
         int err = 0;
         //m dimensional query is in C
+        if ( CFilled == false )
+        {
+            System.err.println("ERROR!!! Please fill the term-document matrix C");
+            return -1;
+        }
+        if ( ! iskRankApprox() )
+        {
+            System.err.println("ERROR!!! U_k has not been filled-in. U_k originates from server! U_k:"+U_k);
+            return -2;
+        }
         if ( C.countColumns() != 1 )
         {
             System.err.println("ERROR!!! As of now only one query document is supported!");
-            return -1;
+            return -3;
         }
         if ( (C.countRows() != U_k.countRows()) )
         {
             System.err.println("ERROR! Dimensions do not match for matrix multiplication " +
                     returnDimString(C.countRows(), C.countColumns())+"^T X " +
                     returnDimString(U_k.countRows(), U_k.countColumns()));
-            return -2;
+            return -4;
         }
         MatrixStore<Double> c_trans = C.transpose();//MatrixStore<Double>
-        MatrixStore<Double> Q_k_scaled = c_trans.multiply(U_k);//dimensions should be 1 x k
-        System.out.println("Q_k_scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(Q_k_scaled));
-        System.out.println(Q_k_scaled);
+        T = c_trans.multiply(U_k);//dimensions should be 1 x k
+        System.out.println("T:Query scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(T));
+        System.out.println(T);
+        this.scaledupTermVectComputed = true;
 
 
         return err;
     }
 
-    public String returnDimString( long row, long col )
+    public boolean isClientContext()
+    {
+        return clientContext;
+    }
+
+    public boolean isForBinaryVector()
+    {
+        return forBinaryVector;
+    }
+
+    public boolean isCFilled()
+    {
+        return CFilled;
+    }
+
+    public boolean isSVDComputed()
+    {
+        return SVDComputed;
+    }
+
+    public boolean iskRankApprox()
+    {
+        return kRankApprox;
+    }
+
+    public boolean isScaledupTermVectComputed()
+    {
+        return scaledupTermVectComputed;
+    }
+
+    public String returnDimString(long row, long col )
     {
         return "["+row+" x "+col+"]";
     }
@@ -382,6 +427,7 @@ public class LSI_OjAlgo
         Sigma_k = truncateSigmaMemFriendly(k);
         U_k = truncateRightmostColumns((U.countColumns()-k), U);
         V_k = truncateRightmostColumns((V.countColumns()-k), V);
+        kRankApprox = true;
 
         //Destroy unnecessary objects
         Sigma = null;
@@ -403,6 +449,7 @@ public class LSI_OjAlgo
         //Computing the scaled-up document matrix (V_k x Sigma_k)
         T = V_k.multiply(Sigma_k);
         //MatrixStore T = V_k;
+        this.scaledupTermVectComputed = true;
 
         System.out.println("T:"+whetherBinary+T);
 
@@ -419,7 +466,6 @@ public class LSI_OjAlgo
             System.out.println("candidateDocNum:"+i+"\t\tcandidate:"+candidateDoc+"\t\tscore:"+score);
         }
 
-        kRankApprox = true;
         return 0;
     }
 
@@ -550,66 +596,57 @@ public class LSI_OjAlgo
         }
         return rowInList;
     }
-    /*For the given file name index, write the entire k dimensional row to the file*/
-    public int createTFIDFAndBinaryVectFile(long rowIndex, long k, String TFIDFVectFileName, String BinVectFileName)
+    /*For the given file name index, write the entire k dimensional row vectors to files*/
+    public int writeRedDimVectTToFile(long rowIndex, long k, String vectFileName)
     {
         int err = 0;
-        MatrixStore matrixStore;    //References the matrix/row vector to be written depending on clientContext or not
-        if ( clientContext == false )
+        if ( ! isScaledupTermVectComputed() )
         {
-            //We are writing one of the indexed document in two documents tfidf and binary
-            matrixStore = T;
-        }
-        else
-        {
-            //We are writing one of the indexed document in two documents tfidf and binary - query is in C as row vector
-            matrixStore = C;
-        }
-        if ( rowIndex >=  matrixStore.countRows())
-        {
-            System.err.println("ERROR!!! Given rowIndex:"+rowIndex+" is out of bounds! Actual rows:"+matrixStore.countRows());
+            System.err.println("ERROR!!! Reduced dimension document matrix T not computed! No vectors present to write to file!");
             return -1;
         }
+        if (( rowIndex >=  T.countRows()) || (rowIndex < 0) )
+        {
+            System.err.println("ERROR!!! Given rowIndex:"+rowIndex+" is out of bounds! Actual rows:"+T.countRows());
+            return -2;
+        }
+        if ( (isClientContext()) && (rowIndex>=1) )
+        {
+            System.err.println("ERROR!!! Given rowIndex:"+rowIndex+" is out of bounds as only one query document is " +
+                    "supported! Actual rows:"+T.countRows());
+            return -3;
+        }
+        if ( k != T.limitOfRow((int)rowIndex) )
+        {
+            System.err.println("ERROR!!! Row(doc.) index:"+rowIndex+" has just "+T.limitOfRow((int)rowIndex)+" columns instead of "+k+" required!");
+            return -4;
+        }
         //File open
-        File fp = new File(TFIDFVectFileName);
-        File fp_bin = new File(BinVectFileName);
+        File fp = new File(vectFileName);
         FileWriter fileWriter = null;
         try
         {
             fileWriter = new FileWriter(fp);
 
-            FileWriter fileWriterBin = new FileWriter(fp_bin);
-
-
-            int count = 0;
-
-            while(termStrIt.hasNext())
+            //while(termStrIt.hasNext())
+            for ( long i = 0; i < k; i++ )
             {
-                String term = termStrIt.next();
+                //String term = termStrIt.next();
                 String ifNewLine = "";
-                int bin;
-                double weight = docWeightInfo.get(term);
-                if ((dictionary.size()!=1) && (count < dictionary.size() - 1) )
+                //double weight = docWeightInfo.get(term);
+                double weight = T.get(rowIndex, i);
+                if ( (k != 1) && (i < k - 1) )
                 {
                     ifNewLine = "\n";
                 }
                 fileWriter.write(((int) weight) + ifNewLine);
-                if (weight == 0)
-                {bin = 0;}
-                else
-                {bin = 1;}
-
-                fileWriterBin.write(bin+ifNewLine);
                 //System.out.println("Added in " + TFIDFVectFileName + "::" + (count+1) + " " + term + ": " + weight);
                 //System.out.println("Added in " + BinVectFileName + "::" + (count + 1) + " " + term + ": " + bin);
-                count++;
             }
 
             //Flush and close the file
             fileWriter.flush();
-            fileWriterBin.flush();
             fileWriter.close();
-            fileWriterBin.close();
 
             //TODO: Remove debug statements below
             //printDocTermVectors(TFIDFVectFileName);

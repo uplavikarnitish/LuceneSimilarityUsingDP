@@ -674,6 +674,25 @@ public class GenerateTFIDFVector {
 
         return err;
     }
+    /*
+    * This function creates two files(TFIDF and Binary vector files) for a given document in index. This function
+    * uses the SVD, k-rank approximated document matrices to write to the files
+    * */
+    public int createTFIDFAndBinaryVectFile(long rowIndex, long k, String TFIDFVectFileName, String BinVectFileName)
+    {
+        int err = 0;
+        if ( lsi.writeRedDimVectTToFile(rowIndex, k, TFIDFVectFileName) != 0 )
+        {
+            System.err.println("ERROR!!! Cannot write the reduced TFIDF SVD document matrix to file:"+TFIDFVectFileName);
+            return -1;
+        }
+        if ( lsi_bin.writeRedDimVectTToFile(rowIndex, k, BinVectFileName) != 0 )
+        {
+            System.err.println("ERROR!!! Cannot write the reduced Binary SVD document matrix to file:"+BinVectFileName);
+            return -2;
+        }
+        return err;
+    }
 
 
     /*
@@ -695,6 +714,7 @@ public class GenerateTFIDFVector {
         LinkedList<String> opListIntermRandAndProdFileNames = new LinkedList<String>();
 
         int err;
+        long docIndex = 0;
 
         if(!(new File(path).isDirectory()))
         {
@@ -713,7 +733,7 @@ public class GenerateTFIDFVector {
         //Obtain the global term list once at the beginning so that output can be generated in the right order for
         //all documents
         Set<String> globalTermsSet = globalTermIDFTreeMap.getSetOfTerms();
-        if ( queryNumDim!= globalTermsSet.size() )
+        if ( queryNumDim!= globalTermsSet.size() && (useLSI == false))//using lsi, these values would be different
         {
             System.err.println("ERROR! Both the client query dimension size ("+queryNumDim+") and global server " +
                     "collection representation dimension size("+globalTermsSet.size()+") should match");
@@ -723,9 +743,19 @@ public class GenerateTFIDFVector {
         //System.out.println("No. of dimensions = " +collectionLevelInfo.docTFIDFVectorTreeMap.size());
         Set<String> docFileNameSet = collectionLevelInfo.docTFIDFVectorTreeMap.getSetOfFileNames();
         Iterator<String> docFileNameIt = docFileNameSet.iterator();
-        //Check if no. of documents in matrices(column nos) is the same for the actual number of documents - lsi
+        if ( useLSI )
+        {
+            //Check if no. of documents in matrices(column nos) is the same for the actual number of documents - lsi
 
-        //Counter to map the filename and its index in T lsi matrix - lsi
+            //Counter to map the filename and its index in T lsi matrix - lsi
+            if ( (lsi.getn() != docFileNameSet.size()) || (lsi_bin.getn() != docFileNameSet.size()) )
+            {
+                System.err.println("ERROR!!! Inconsistency in number of documents. All should be equal - (lsi_tfidf:"+
+                        lsi.getn()+", lsi_bin:"+lsi_bin.getn()+", collection:"+docFileNameSet.size()+")");
+                return null;
+            }
+            docIndex = 0;
+        }
 
         while(docFileNameIt.hasNext())
         {
@@ -744,11 +774,24 @@ public class GenerateTFIDFVector {
             //Get the document tfidf term vector contained in the treemap collectionLevelInfo.docTFIDFVectorTreeMap
             DocMagnitudeTreeMap docTFIDFVectorTreeMap = collectionLevelInfo.docTFIDFVectorTreeMap.get(curDocNameStr);
 
-            if (this.createTFIDFAndBinaryVectFile(globalTermsSet, newFileNameTFIDF, newFileNameBin, docTFIDFVectorTreeMap)!=0)
+            if ( useLSI==true )
             {
-                System.err.println("ERROR! In execution of createTFIDFAndBinaryVectFile!");
-                new Exception().printStackTrace();
-                return null;
+                if (this.createTFIDFAndBinaryVectFile(docIndex, queryNumDim /*this should be k*/, newFileNameTFIDF, newFileNameBin) != 0)
+                {
+                    System.err.println("ERROR! In execution of createTFIDFAndBinaryVectFile:lsi version!");
+                    new Exception().printStackTrace();
+                    return null;
+                }
+                docIndex++;
+            }
+            else
+            {
+                if (this.createTFIDFAndBinaryVectFile(globalTermsSet, newFileNameTFIDF, newFileNameBin, docTFIDFVectorTreeMap) != 0)
+                {
+                    System.err.println("ERROR! In execution of createTFIDFAndBinaryVectFile!");
+                    new Exception().printStackTrace();
+                    return null;
+                }
             }
 
             //TODO:DBG line follows
@@ -777,7 +820,7 @@ public class GenerateTFIDFVector {
 	/*
 	* Takes path as input and writes the encrypted document vector for the file to directory given by path.
 	* */
-	public int writeDocVectorToFile(String relFilename, String outputEncrTFIDFVecFile, String outputEncrBinVecFile, String keyFileName) throws IOException {
+	public int writeDocVectorToFile(long k, String relFilename, String outputEncrTFIDFVecFile, String outputEncrBinVecFile, String keyFileName) throws IOException {
 
         int ret;
 		boolean docPresent = false;
@@ -823,23 +866,39 @@ public class GenerateTFIDFVector {
                 //Get the document tfidf term vector contained in the treemap collectionLevelInfo.docTFIDFVectorTreeMap
                 DocMagnitudeTreeMap docTFIDFVectorTreeMap = collectionLevelInfo.docTFIDFVectorTreeMap.get(curDocNameStr);
 
-                if (this.createTFIDFAndBinaryVectFile(globalTermsSet, tempUnEncrVectFileName, tempUnEncrBinVectFileName, docTFIDFVectorTreeMap)!=0)
+                int m = globalTermsSet.size();
+                if ( useLSI == true )
                 {
-                    System.err.println("ERROR! In execution of createTFIDFAndBinaryVectFile!");
-                    new Exception().printStackTrace();
-                    return -2;
+                    if (this.createTFIDFAndBinaryVectFile(0/*There is one query doc*/, k, tempUnEncrVectFileName, tempUnEncrBinVectFileName) != 0)
+                    {
+                        System.err.println("ERROR! In execution of createTFIDFAndBinaryVectFile!");
+                        new Exception().printStackTrace();
+                        return -2;
+                    }
+                    //modify m for use in C code
+                    m = (int)k; //k ~ 100 or 200
+                }
+                else
+                {
+                    if (this.createTFIDFAndBinaryVectFile(globalTermsSet, tempUnEncrVectFileName, tempUnEncrBinVectFileName, docTFIDFVectorTreeMap) != 0)
+                    {
+                        System.err.println("ERROR! In execution of createTFIDFAndBinaryVectFile!");
+                        new Exception().printStackTrace();
+                        return -3;
+                    }
+                    //keep m as it is as lsi operation is not involved
                 }
 
 
                 //Encrypt the unencrypted TFIDF and write the vector to file using the GMP-C code
-                if ((ret = nativeCGMPCmbndLib.encrypt_vec_to_file(globalTermsSet.size(),
+                if ((ret = nativeCGMPCmbndLib.encrypt_vec_to_file(m,
                         new File(tempUnEncrVectFileName).getAbsolutePath(), outputEncrTFIDFVecFile, keyFileName))!=0)
                 {
                     System.err.println("nativeCGMPCmbndLib.encrypt_vec_to_file returned " + ret);
                 }
 
                 //Encrypt the unencrypted Binary TFIDF and write the vector to file using the GMP-C code
-                if ((ret = nativeCGMPCmbndLib.encrypt_vec_to_file(globalTermsSet.size(),
+                if ((ret = nativeCGMPCmbndLib.encrypt_vec_to_file(m,
                         new File(tempUnEncrBinVectFileName).getAbsolutePath(), outputEncrBinVecFile, keyFileName))!=0)
                 {
                     System.err.println("nativeCGMPCmbndLib.encrypt_vec_to_file returned "+ret);
