@@ -47,6 +47,11 @@ public class LSI_OjAlgo
     MatrixStore<Double> T;//For server: stores the k approx. scaled up doc. matrix[n x k]. For client: stores the k approx.
     // scaled up query(doc.) matrix[1 x k]
 
+    double max, min;
+
+    //constant to scale the binary T
+    double scaleRoundErrors;
+
     public void setPhysicalStore()
     {
         doublePrimitiveDenseStoreFactory = PrimitiveDenseStore.FACTORY;
@@ -88,6 +93,17 @@ public class LSI_OjAlgo
         return k;
     }
 
+    public double getScaleRoundErrors()
+    {
+        return scaleRoundErrors;
+    }
+
+    public int setScaleRoundErrors(double scaleRoundErrors)
+    {
+        this.scaleRoundErrors = scaleRoundErrors;
+        return 0;
+    }
+
     public PrimitiveDenseStore getZeroedOutPrimDensStore(long m, long n)
     {
         PrimitiveDenseStore primDensDouble = null;
@@ -100,6 +116,50 @@ public class LSI_OjAlgo
             System.err.println("Cannot allocate from physical store factory");
         }
         return primDensDouble;
+    }
+
+    public PrimitiveDenseStore getFilledOutPrimDensStore( MatrixStore<Double> a )
+    {
+        long rowCnt, colCnt, i, j;
+        if ( a == null )
+        {
+            System.err.println("ERROR!!! Invalid parameter a:null!");
+            return null;
+        }
+
+        rowCnt = a.countRows();
+        colCnt = a.countColumns();
+
+        PrimitiveDenseStore primitiveDenseStore = getZeroedOutPrimDensStore(rowCnt, colCnt);
+        for ( i=0; i<rowCnt; i++ )
+        {
+            for ( j=0; j<colCnt; j++ )
+            {
+                primitiveDenseStore.set(i, j, a.get(i, j));
+            }
+        }
+        return primitiveDenseStore;
+    }
+    public int addScalar( PrimitiveDenseStore a, double scalar )
+    {
+        long rowCnt, colCnt, i, j;
+        if ( a == null )
+        {
+            System.err.println("ERROR!!! Invalid parameter a:null!");
+            return -1;
+        }
+
+        rowCnt = a.countRows();
+        colCnt = a.countColumns();
+
+        for ( i=0; i<rowCnt; i++ )
+        {
+            for ( j=0; j<colCnt; j++ )
+            {
+                a.add(i, j, scalar);
+            }
+        }
+        return 0;
     }
 
     //TODO create an interface for this class to incorporate binary matrix creation functionality
@@ -115,6 +175,11 @@ public class LSI_OjAlgo
         setk(-1);   //Would be set and used later in this.computeKRankApproximation()
         //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
         this.forBinaryVector = forBinaryVector;
+        System.out.println("Binary LSI:"+forBinaryVector);
+        if (forBinaryVector)
+        {
+            setScaleRoundErrors(1);
+        }
         C = getZeroedOutPrimDensStore(m, n);
 
         //TODO: Release unused rows from C after k-estimation
@@ -130,6 +195,11 @@ public class LSI_OjAlgo
         U_k = null;
         //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
         this.forBinaryVector = forBinaryVector;
+        System.out.println("Binary LSI:"+forBinaryVector);
+        if (forBinaryVector)
+        {
+            setScaleRoundErrors(1);
+        }
         C = getZeroedOutPrimDensStore(m, 1);//C will store query vector as a column vector[m x 1]
     }
 
@@ -303,9 +373,20 @@ public class LSI_OjAlgo
         }
         MatrixStore<Double> c_trans = C.transpose();//MatrixStore<Double>
         T = c_trans.multiply(U_k);//dimensions should be 1 x k
-        System.out.println("T:Query scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(T));
-        System.out.println(T);
         this.scaledupTermVectComputed = true;
+        System.out.println("T:Query scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(T));
+
+        adjustTForCryptoOperations();
+
+        System.out.println("T matrix - min:"+getMin()+" max:"+getMax());
+        System.out.println("Before mul by roundoff constant T:"+T);
+        if ( this.forBinaryVector == true )
+        {
+            //TODO - Check if the scaling up to binary works
+            T = T.multiply(this.getScaleRoundErrors());
+            System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
+        }
+        System.out.println("After mul by roundoff constant T:"+T);
 
 
         return err;
@@ -450,6 +531,16 @@ public class LSI_OjAlgo
         T = V_k.multiply(Sigma_k);
         //MatrixStore T = V_k;
         this.scaledupTermVectComputed = true;
+
+        adjustTForCryptoOperations();
+
+        System.out.println("Before mul by roundoff constant T:"+whetherBinary+T);
+        if ( this.forBinaryVector == true )
+        {
+            //TODO - Check if the scaling up to binary works
+            T = T.multiply(this.getScaleRoundErrors());
+            System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
+        }
 
         System.out.println("T:"+whetherBinary+T);
 
@@ -658,5 +749,118 @@ public class LSI_OjAlgo
         }
 
         return err;
+    }
+
+    public PrimitiveDenseStore normalizeMatrix(MatrixStore<Double> a)
+    {
+        long i, j, rowCnt, colCnt;
+        double magnitude = 0, temp;
+
+        if ( a == null )
+        {
+            System.err.println("ERROR!!! Invalid input parameter a == null!");
+            return null;
+        }
+
+        rowCnt = a.countRows();
+        colCnt = a.countColumns();
+
+        //Create a new matrix
+        PrimitiveDenseStore normalized = getZeroedOutPrimDensStore(rowCnt, colCnt);
+
+        for (i=0; i<rowCnt; i++)
+        {
+            //Each row is a vector and we have to normalize each vector such that sum of square of each element after
+            // normalization is 1.
+            //for
+            magnitude = 0;
+            for ( j=0; j<colCnt; j++ )
+            {
+                temp = a.get(i, j);
+                magnitude = magnitude + (temp*temp);
+            }
+            for ( j=0; j<colCnt; j++ )
+            {
+                temp = a.get(i, j);
+                temp = temp / magnitude;
+                normalized.set(i, j, temp);
+            }
+        }
+
+        return normalized;
+    }
+
+    public long getMinMax(MatrixStore<Double> a)
+    {
+        long err = 0, i, j, rowCnt, colCnt;
+        double temp;
+
+        if ( a == null )
+        {
+            System.err.println("ERROR!!! Invalid input parameter a == null!");
+            return -1;
+        }
+
+        rowCnt = a.countRows();
+        colCnt = a.countColumns();
+
+        min = a.get(0, 0);
+        max = min;
+        for (i=0; i<rowCnt; i++)
+        {
+            for ( j=0; j<colCnt; j++ )
+            {
+                temp = a.get(i, j);
+                if ( temp < min )
+                {
+                    min = temp;
+                }
+                if ( temp > max )
+                {
+                    max = temp;
+                }
+            }
+        }
+
+        return err;
+    }
+    public double getMax()
+    {
+        return max;
+    }
+    public double getMin()
+    {
+        return min;
+    }
+    public int adjustTForCryptoOperations()
+    {
+        double min, max, absMin, absMax;
+        getMinMax(T);
+        min = getMin();
+        max = getMax();
+
+        if ( min < 0 )
+        {
+            absMin = -1 * min;
+        }
+        else
+        {
+            absMin = min;
+        }
+
+        if ( max < 0 )
+        {
+            absMax = -1 * max;
+        }
+        else
+        {
+            absMax = max;
+        }
+        System.out.println("T before adjusting "+T);
+        PrimitiveDenseStore primitiveDenseStore = getFilledOutPrimDensStore(T);
+        addScalar(primitiveDenseStore, absMax);
+        T = primitiveDenseStore.get();
+        System.out.println("T after adjusting "+T);
+        return 0;
     }
 }
