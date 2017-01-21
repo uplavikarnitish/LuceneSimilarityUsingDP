@@ -47,10 +47,12 @@ public class LSI_OjAlgo
     MatrixStore<Double> T;//For server: stores the k approx. scaled up doc. matrix[n x k]. For client: stores the k approx.
     // scaled up query(doc.) matrix[1 x k]
 
-    double max, min;
+    double max, min, negativeCorrection;
+    boolean negativeCorrectionAdded=false;
 
     //constant to scale the binary T
-    double scaleRoundErrors;
+    double scaleRoundErrors;        //TODO - IMPORTANT Value should depend on k
+    boolean scaleRoundErrorsMul = false;
 
     public void setPhysicalStore()
     {
@@ -176,10 +178,10 @@ public class LSI_OjAlgo
         //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
         this.forBinaryVector = forBinaryVector;
         System.out.println("Binary LSI:"+forBinaryVector);
-        if (forBinaryVector)
-        {
-            setScaleRoundErrors(1);
-        }
+        //if (forBinaryVector)
+        //{
+        setScaleRoundErrors(10);
+        //}
         C = getZeroedOutPrimDensStore(m, n);
 
         //TODO: Release unused rows from C after k-estimation
@@ -196,10 +198,10 @@ public class LSI_OjAlgo
         //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
         this.forBinaryVector = forBinaryVector;
         System.out.println("Binary LSI:"+forBinaryVector);
-        if (forBinaryVector)
-        {
-            setScaleRoundErrors(1);
-        }
+        //if (forBinaryVector)
+        //{
+        setScaleRoundErrors(10);
+        //}
         C = getZeroedOutPrimDensStore(m, 1);//C will store query vector as a column vector[m x 1]
     }
 
@@ -380,13 +382,14 @@ public class LSI_OjAlgo
 
         System.out.println("T matrix - min:"+getMin()+" max:"+getMax());
         System.out.println("Before mul by roundoff constant T:"+T);
+        /*
         if ( this.forBinaryVector == true )
         {
             //TODO - Check if the scaling up to binary works
             T = T.multiply(this.getScaleRoundErrors());
             System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
         }
-        System.out.println("After mul by roundoff constant T:"+T);
+        System.out.println("After mul by roundoff constant T:"+T);*/
 
 
         return err;
@@ -532,32 +535,82 @@ public class LSI_OjAlgo
         //MatrixStore T = V_k;
         this.scaledupTermVectComputed = true;
 
+        System.out.println(">>>>>>>>>>>>BEFORE");
+        computePairwiseSimilarity(false);
+
         adjustTForCryptoOperations();
 
-        System.out.println("Before mul by roundoff constant T:"+whetherBinary+T);
-        if ( this.forBinaryVector == true )
-        {
-            //TODO - Check if the scaling up to binary works
-            T = T.multiply(this.getScaleRoundErrors());
-            System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
-        }
+        System.out.println("<<<<<<<<<<<<AFTER");
+        computePairwiseSimilarity(true);
 
-        System.out.println("T:"+whetherBinary+T);
 
-        //Computing similarity
-        int queryDocNum = 3;    //1 - second one
-        Access1D<Double> query = T.sliceRow(queryDocNum, 0);
-        System.out.println("queryDocNum:"+queryDocNum+"\t\tquery:"+query);
-
-        long n = T.countRows(); //Store number of documents
-        for ( int i=0; i<n; i++ )
-        {
-            Access1D<Double> candidateDoc = T.sliceRow(i, 0);
-            double score = candidateDoc.dot(query);
-            System.out.println("candidateDocNum:"+i+"\t\tcandidate:"+candidateDoc+"\t\tscore:"+score);
-        }
 
         return 0;
+    }
+
+    /*This is a test function to see similarity of documents in collection in reduced dimensions*/
+    public int computePairwiseSimilarity(boolean removeNegativeCorrection)
+    {
+        double correctionFactor=0;
+        if ( (negativeCorrectionAdded == false) && (removeNegativeCorrection == true))
+        {
+            System.err.println("ERROR!!! Cannot remove negative correction as it has not been added in first place!");
+            return -1;
+        }
+        long n = T.countRows(); //Store number of documents
+        //Computing similarity
+        System.out.println("============TESTING SIMILARITY SCORES Binary:"+isForBinaryVector()+"==============START");
+        for ( int queryDocNum = 0; queryDocNum < n; queryDocNum++ )
+        {
+            //queryDocNum = 0 - first one
+            Access1D<Double> query = T.sliceRow(queryDocNum, 0);
+            System.out.println("\n\nqueryDocNum:" + queryDocNum + "\t\tquery:" + query);
+
+            for (int i = 0; i < n; i++)
+            {
+                Access1D<Double> candidateDoc = T.sliceRow(i, 0);
+                double score = candidateDoc.dot(query);
+                if ( removeNegativeCorrection )
+                {
+                    Double sumOfRow = getRowSum(T, i);
+                    if ( sumOfRow == null )
+                    {
+                        System.err.println("ERROR!!! Executing getRowSum()!");
+                        return -2;
+                    }
+                    double negativeCorrectionValue = negativeCorrection;
+                    if ( scaleRoundErrorsMul == true )
+                    {
+                        negativeCorrectionValue = negativeCorrectionValue * this.getScaleRoundErrors();
+                    }
+                    correctionFactor = (sumOfRow.doubleValue())*negativeCorrectionValue;
+                }
+                System.out.println("DocNum:" + i + "\tcandidate:" + candidateDoc +
+                        "\nbeforeCorrectionScore:" + score+"\tafterCorrectionScore:"+(score-correctionFactor)+
+                        "\tcorrectionFactor:"+correctionFactor+"\n");
+            }
+
+        }
+        System.out.println("============TESTING SIMILARITY SCORES Binary:"+isForBinaryVector()+"================END\n\n\n\n\n");
+        return 0;
+    }
+
+    public Double getRowSum(MatrixStore a, long rowIndex)
+    {
+        long colCount;
+        double sum;
+        if ( rowIndex >= a.countRows() )
+        {
+            System.err.println("ERROR!!! Index "+rowIndex+" out of bounds "+a.countRows());
+            return null;
+        }
+        colCount = a.countColumns();
+        sum = 0;
+        for (long i = 0; i < colCount; i++)
+        {
+            sum = sum + a.get(rowIndex, i).doubleValue();
+        }
+        return new Double(sum);
     }
 
     public PrimitiveDenseStore truncateSigmaMemFriendly(long k)
@@ -832,10 +885,49 @@ public class LSI_OjAlgo
     {
         return min;
     }
+
+    public double getNegativeCorrection()
+    {
+        return negativeCorrection;
+    }
+
+    /*This effective correction factor has to be subtracted from dot products in the C code*/
+    public double getEffectiveCorrection()
+    {
+        double negCorrection = 0;
+        if ( negativeCorrectionAdded == true )
+        {
+            if ( scaleRoundErrorsMul == true )
+            {
+                negCorrection =  (getNegativeCorrection()*getScaleRoundErrors());
+            }
+            else
+            {
+                negCorrection = (getNegativeCorrection());
+            }
+        }
+        return negCorrection;
+    }
+
+
+
     public int adjustTForCryptoOperations()
     {
         double min, max, absMin, absMax;
-        getMinMax(T);
+        PrimitiveDenseStore temp;
+
+        //Normalize
+        System.out.println("T before normalization "+T);
+        temp = normalizeMatrix(T);
+        if ( temp == null )
+        {
+            System.err.println("ERROR!!! In normalizing T matrix");
+            return -1;
+        }
+        System.out.println("T after normalization "+temp);
+
+        //Remove negative elements
+        getMinMax(temp);
         min = getMin();
         max = getMax();
 
@@ -856,11 +948,29 @@ public class LSI_OjAlgo
         {
             absMax = max;
         }
-        System.out.println("T before adjusting "+T);
-        PrimitiveDenseStore primitiveDenseStore = getFilledOutPrimDensStore(T);
-        addScalar(primitiveDenseStore, absMax);
-        T = primitiveDenseStore.get();
-        System.out.println("T after adjusting "+T);
+        this.negativeCorrection = absMin;
+        System.out.println("T before adjusting for negative correction "+temp);
+        //PrimitiveDenseStore primitiveDenseStore = getFilledOutPrimDensStore(T);
+        if ( min < 0 )
+        {
+            addScalar(temp, negativeCorrection);
+            negativeCorrectionAdded = true;
+        }
+        T = temp.get();
+        System.out.println("T after adjusting for negative correction "+T);
+
+        //For binary vectors where elements can have values between 0 to 1, we scale them up. TFIDF does not require this - Modified it does require here -
+        // as their values are already huge due to scaling done while generating the vectors from index see getDocTFIDFVectors()
+        // for normalizeAndScaleUpVector() function.
+        System.out.println("Before mul by roundoff constant T:"+this.forBinaryVector+" "+T);
+        //if ( this.forBinaryVector == true )
+        //{
+        T = T.multiply(this.getScaleRoundErrors());
+        scaleRoundErrorsMul = true;
+        System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
+        //}
+
+        System.out.println("T:"+this.forBinaryVector+" "+T);
         return 0;
     }
 }

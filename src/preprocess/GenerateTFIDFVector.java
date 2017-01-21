@@ -86,6 +86,12 @@ public class GenerateTFIDFVector {
         {
             buildingVectForAllDoc = 1;
         }
+        //This condition is only for tfidf vectors to not be scaled up twice if LSI is enabled if not enabled, scale in
+        // this function itself
+        if ( this.useLSI == true )
+        {
+            modifyScalingFactor(1);
+        }
         //TODO NOTE: Important to set the correct minimum token length.
 
         LeafReader indexLeafReader = null;
@@ -782,6 +788,8 @@ public class GenerateTFIDFVector {
                     new Exception().printStackTrace();
                     return null;
                 }
+
+                //TODO: add code to write [x*(sum of all k dimensions i.e. queryNumDim for doc given by docIndex)] for tfidf and binary vectors to a file say correction separated by newline
                 docIndex++;
             }
             else
@@ -794,13 +802,14 @@ public class GenerateTFIDFVector {
                 }
             }
 
-            //TODO:DBG line follows
             //System.out.println("Adding the TFIDF vectors for document:"+ curDocNameStr+" in "+ newFileNameTFIDF +" and "+newFileNameBin);
             //Get the iterator to traverse the global term list for this current document.
 
-
+            //TODO: If LSA is enabled use the correction values written in above(one for TFIDF and other for binary delimited by a newline) IF block
+            //TODO: subtract these then from dot products of TFIDF and binary vectors respectively using the homomorphic properties. i.e. convert correction
+            //TODO: values to negative (n-c), take E((n-c)), take product with its corresponding ciphertext having dot product.
             if (  (err = nativeCGMPCmbndLib.read_encrypt_vec_from_file_comp_inter_sec_prod(queryNumDim, absEncrTFIDFQueryFileName,
-                    absEncrBinQueryFileName, newFileNameTFIDF, newFileNameBin, opRandAndProdFile, keyFileName)) != 0)
+                   absEncrBinQueryFileName, newFileNameTFIDF, newFileNameBin, opRandAndProdFile, keyFileName, getFloor(123.13), getFloor(454.242442))) != 0)
             {
                 System.out.println("ERROR in calling nativeCGMPCmbndLib's functn. to compute intermediate product values, err:"+err);
                 return null;
@@ -816,6 +825,25 @@ public class GenerateTFIDFVector {
         return opListIntermRandAndProdFileNames;
     }
 
+    public long getCeiling(double a)
+    {
+
+        if ( a % 1 > 0 )
+        {
+            a = a + (1 - (a % 1));
+        }
+        return (long) a;
+    }
+
+    public static long getFloor(double a)
+    {
+
+        if ( a % 1 > 0 )
+        {
+            a = a - (a % 1);
+        }
+        return (long) a;
+    }
 
 	/*
 	* Takes path as input and writes the encrypted document vector for the file to directory given by path.
@@ -1011,6 +1039,16 @@ public class GenerateTFIDFVector {
         return simValue;
 
 
+    }
+
+    public double getTFIDFEffectiveCorrection()
+    {
+        return lsi.getEffectiveCorrection();
+    }
+
+    public double getBinEffectiveCorrection()
+    {
+        return lsi_bin.getEffectiveCorrection();
     }
 
     TreeSet<CollectionLevelInfo> setOfClusters;
