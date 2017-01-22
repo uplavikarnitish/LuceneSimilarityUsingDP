@@ -194,7 +194,7 @@ public class GenerateTFIDFVector {
                 if (queryDocName.compareTo(this.getActualFileName(fileName)) == 0)
                 {
                     buildingQueryVectOnly = 1;
-                    System.out.println("Building Vector for query file!");
+                    //System.out.println("Building Vector for query file!");
                     //NOTE: break?
                 }
             }
@@ -284,12 +284,12 @@ public class GenerateTFIDFVector {
                 //System.out.println("Doc #" + (i) + " Document magnitude = " + collectionLevelInfo.docMagnitudeTreeMap.get(fileName) + "\n");
 
 
-                collectionLevelInfo.printDocTFIDFVectorTreeMapAndDocMagnitudeTreeMap();
+                //collectionLevelInfo.printDocTFIDFVectorTreeMapAndDocMagnitudeTreeMap();
             }
             if ( buildingQueryVectOnly == 1 )
             {
                 //We have done building the query vector and that was the only task. Now break.
-                System.out.println("Query Vector Built");
+                //System.out.println("Query Vector Built");
                 n = 1;//IMPORTANT: if support for multiple documents is added then this value needs to be modified
                 break;
             }
@@ -300,22 +300,22 @@ public class GenerateTFIDFVector {
             //For obtaining LSI of TFIDF term-document matrix
             lsi = new LSI_OjAlgo(m, n, false);
             lsi.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
-            lsi.printTermDocMatrix();
+            //lsi.printTermDocMatrix();
             lsi.computeDecomposition();
             lsi.computeKRankApproximation(k);
 
             //For obtaining LSI of binary term-document matrix
             lsi_bin = new LSI_OjAlgo(m, n, true);
             lsi_bin.populateTermDocMatrix(collectionLevelInfo.docTFIDFVectorTreeMap, globalTermIDFTreeMap.getSetOfTerms());
-            lsi_bin.printTermDocMatrix();
+            //lsi_bin.printTermDocMatrix();
             lsi_bin.computeDecomposition();
             lsi_bin.computeKRankApproximation(k);
         }
         else if ( (useLSI == true) && (buildingQueryVectOnly == 1) )
         {
             //For tfidf
-            System.out.println("Received the list for creation of U_k from peer into library now ...");
-            System.out.println("Received matrix dim:"+listFormOfU_k.size()+" x "+ listFormOfU_k.get(0).size());
+            //System.out.println("Received the list for creation of U_k from peer into library now ...");
+            //System.out.println("Received matrix dim:"+listFormOfU_k.size()+" x "+ listFormOfU_k.get(0).size());
             lsi = new LSI_OjAlgo(m, n, k, false);
             lsi.buildU_kForClient(listFormOfU_k);//TODO add return value checks
             if ( (collectionLevelInfo.getNumOfDocs() != 1) || (n != 1)) //NOTE: can be a global parameter/constant
@@ -329,8 +329,8 @@ public class GenerateTFIDFVector {
 
 
             //For binary
-            System.out.println("Received the list for creation of U_k_bin from peer into library now ...");
-            System.out.println("Received matrix dim:"+listFormOfU_k_bin.size()+" x "+ listFormOfU_k_bin.get(0).size());
+            //System.out.println("Received the list for creation of U_k_bin from peer into library now ...");
+            //System.out.println("Received matrix dim:"+listFormOfU_k_bin.size()+" x "+ listFormOfU_k_bin.get(0).size());
             lsi_bin = new LSI_OjAlgo(m, n, k, true);
             lsi_bin.buildU_kForClient(listFormOfU_k_bin);//TODO add return value checks
             if ( (collectionLevelInfo.getNumOfDocs() != 1) || (n != 1)) //NOTE: can be a global parameter/constant
@@ -792,7 +792,7 @@ public class GenerateTFIDFVector {
                 }
                 tfidfRowCorrection = (new Double(lsi.getRowEffectiveCorrection(docIndex))).toString();
                 binRowCorrection = (new Double(lsi_bin.getRowEffectiveCorrection(docIndex))).toString();
-                System.out.println("Doc:#"+docIndex+"\t tfidfRowCorr:"+tfidfRowCorrection+"\t binRowCorr:"+binRowCorrection);
+                //System.out.println("Doc:#"+docIndex+"\t tfidfRowCorr:"+tfidfRowCorrection+"\t binRowCorr:"+binRowCorrection);
 
                 //TODO: add code to write [x*(sum of all k dimensions i.e. queryNumDim for doc given by docIndex)] for tfidf and binary vectors to a file say correction separated by newline
                 docIndex++;
@@ -816,7 +816,7 @@ public class GenerateTFIDFVector {
             if (  (err = nativeCGMPCmbndLib.read_encrypt_vec_from_file_comp_inter_sec_prod(queryNumDim, absEncrTFIDFQueryFileName,
                    absEncrBinQueryFileName, newFileNameTFIDF, newFileNameBin, opRandAndProdFile, keyFileName, tfidfRowCorrection, binRowCorrection)) != 0)
             {
-                System.out.println("ERROR in calling nativeCGMPCmbndLib's functn. to compute intermediate product values, err:"+err);
+                System.err.println("ERROR in calling nativeCGMPCmbndLib's functn. to compute intermediate product values, err:"+err);
                 return null;
             }
 
@@ -857,7 +857,7 @@ public class GenerateTFIDFVector {
 
         int ret;
 		boolean docPresent = false;
-        System.out.println("Encrypting Query Vector and writing it to file ...");
+        //System.out.println("Encrypting Query Vector and writing it to file ...");
         if((new File(relFilename).isDirectory()))
 		{
 			Exception e = new Exception("ERROR! Required relative filename given directory, name given:"+relFilename);
@@ -942,7 +942,7 @@ public class GenerateTFIDFVector {
 			}
 
 		}//
-        System.out.println("Encryption and writing of Query Vector completed!");
+        //System.out.println("Encryption and writing of Query Vector completed!");
 		if (!docPresent)
 		{
             System.err.println("ERROR! File not present! "+ relFilename);

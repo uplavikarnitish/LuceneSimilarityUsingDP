@@ -177,7 +177,7 @@ public class LSI_OjAlgo
         setk(-1);   //Would be set and used later in this.computeKRankApproximation()
         //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
         this.forBinaryVector = forBinaryVector;
-        System.out.println("Binary LSI:"+forBinaryVector);
+        //System.out.println("Binary LSI:"+forBinaryVector);
         //if (forBinaryVector)
         //{
         setScaleRoundErrors(10);
@@ -197,7 +197,7 @@ public class LSI_OjAlgo
         U_k = null;
         //Whether the C matrix is going to be used for TFIDF matrix or a binary(term-document incidence) matrix
         this.forBinaryVector = forBinaryVector;
-        System.out.println("Binary LSI:"+forBinaryVector);
+        //System.out.println("Binary LSI:"+forBinaryVector);
         //if (forBinaryVector)
         //{
         setScaleRoundErrors(10);
@@ -235,7 +235,7 @@ public class LSI_OjAlgo
             }
             rowCnt++;
         }
-        System.out.println("Populated prim. den. store U_k for lsi: "+U_k);
+        //System.out.println("Populated prim. den. store U_k for lsi: "+U_k);
         SVDComputed = true;
         kRankApprox = true;
 
@@ -376,12 +376,12 @@ public class LSI_OjAlgo
         MatrixStore<Double> c_trans = C.transpose();//MatrixStore<Double>
         T = c_trans.multiply(U_k);//dimensions should be 1 x k
         this.scaledupTermVectComputed = true;
-        System.out.println("T:Query scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(T));
+        //System.out.println("T:Query scaled computed forBinaryVector:"+forBinaryVector+":- Dimensions - Exp.:"+returnDimString(1, k)+" present:"+returnDimString(T));
 
         adjustTForCryptoOperations();
 
-        System.out.println("T matrix - min:"+getMin()+" max:"+getMax());
-        System.out.println("Before mul by roundoff constant T:"+T);
+        //System.out.println("T matrix - min:"+getMin()+" max:"+getMax());
+        //System.out.println("Before mul by roundoff constant T:"+T);
         /*
         if ( this.forBinaryVector == true )
         {
@@ -460,16 +460,16 @@ public class LSI_OjAlgo
             return -1;
         }
         final SingularValue<Double> svd = SingularValue.PRIMITIVE.make();
-        System.out.println("\n\niscomputed = "+svd.isComputed());
+        //System.out.println("\n\niscomputed = "+svd.isComputed());
         svd.decompose(C);
-        System.out.println("\n\niscomputed = "+svd.isComputed());
+        //System.out.println("\n\niscomputed = "+svd.isComputed());
         U = svd.getQ1();
         V = svd.getQ2();
         Sigma = svd.getD();
 
-        System.out.println("\n\nU = "+U);
-        System.out.println("\n\nSigma = "+Sigma);
-        System.out.println("\n\nV = "+V);
+        //System.out.println("\n\nU = "+U);
+        //System.out.println("\n\nSigma = "+Sigma);
+        //System.out.println("\n\nV = "+V);
 
 
         /*
@@ -519,29 +519,31 @@ public class LSI_OjAlgo
         V = null;
 
         String whetherBinary = "\t Is binary type?:"+forBinaryVector;
-        System.out.println("k = "+k);
-        System.out.println("Sigma_k dimensions:"+Sigma_k.countRows()+" x "+Sigma_k.countColumns()+whetherBinary);
-        System.out.println("U_k dimensions:"+U_k.countRows()+" x "+U_k.countColumns()+whetherBinary);
-        System.out.println("V_k dimensions:"+V_k.countRows()+" x "+V_k.countColumns()+whetherBinary);
+        //System.out.println("k = "+k);
+        //System.out.println("Sigma_k dimensions:"+Sigma_k.countRows()+" x "+Sigma_k.countColumns()+whetherBinary);
+        //System.out.println("U_k dimensions:"+U_k.countRows()+" x "+U_k.countColumns()+whetherBinary);
+        //System.out.println("V_k dimensions:"+V_k.countRows()+" x "+V_k.countColumns()+whetherBinary);
         //After truncation, sizes of the matrices are:
         //Sigma_k: k x k
         //U_k: m x k
         //V_k: n x k
-        System.out.println("U_k:"+whetherBinary+U_k);
-        System.out.println("V_k:"+whetherBinary+V_k);
+        //System.out.println("U_k:"+whetherBinary+U_k);
+        //System.out.println("V_k:"+whetherBinary+V_k);
 
         //Computing the scaled-up document matrix (V_k x Sigma_k)
         T = V_k.multiply(Sigma_k);
         //MatrixStore T = V_k;
         this.scaledupTermVectComputed = true;
 
+        /*DBG
         System.out.println(">>>>>>>>>>>>BEFORE");
-        computePairwiseSimilarity(false);
+        computePairwiseSimilarity(false);*/
 
         adjustTForCryptoOperations();
 
-        System.out.println("<<<<<<<<<<<<AFTER");
-        computePairwiseSimilarity(true);
+        //DBG
+        /*System.out.println("<<<<<<<<<<<<AFTER");
+        computePairwiseSimilarity(true);*/
 
 
 
@@ -629,8 +631,8 @@ public class LSI_OjAlgo
         {
             System.err.println("Sigma should be a square singular matrix: limitOfColumn:"+Sigma.limitOfColumn(1000)+" limitOfRow:"+Sigma.limitOfRow(2000));
         }
-        System.out.println("Sigma--------->\n"+Sigma);
-        System.out.println("Sigma: limitOfColumn:"+Sigma.limitOfColumn(1000)+" limitOfRow:"+Sigma.limitOfRow(2000));
+        //System.out.println("Sigma--------->\n"+Sigma);
+        //System.out.println("Sigma: limitOfColumn:"+Sigma.limitOfColumn(1000)+" limitOfRow:"+Sigma.limitOfRow(2000));
 
         PrimitiveDenseStore Sigma_k = doublePrimitiveDenseStoreFactory.makeZero(k, k);
         for (int i =0; i<k; i++)
@@ -1019,7 +1021,7 @@ public class LSI_OjAlgo
             absMax = max;
         }
         this.negativeCorrection = absMin;
-        System.out.println("T before adjusting for negative correction "+T);
+        //System.out.println("T before adjusting for negative correction "+T);
         PrimitiveDenseStore primitiveDenseStore = getFilledOutPrimDensStore(T);
         if ( min < 0 )
         {
@@ -1027,20 +1029,20 @@ public class LSI_OjAlgo
             negativeCorrectionAdded = true;
         }
         T = primitiveDenseStore.get();
-        System.out.println("T after adjusting for negative correction "+T);
+        //System.out.println("T after adjusting for negative correction "+T);
 
         //For binary vectors where elements can have values between 0 to 1, we scale them up. TFIDF does not require this - Modified it does require here -
         // as their values are already huge due to scaling done while generating the vectors from index see getDocTFIDFVectors()
         // for normalizeAndScaleUpVector() function.
-        System.out.println("Before mul by roundoff constant T:"+this.forBinaryVector+" "+T);
+        //System.out.println("Before mul by roundoff constant T:"+this.forBinaryVector+" "+T);
         //if ( this.forBinaryVector == true )
         //{
         T = T.multiply(this.getScaleRoundErrors());
         scaleRoundErrorsMul = true;
-        System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
+        //System.out.println("Scaling up T by a factor of:"+ this.getScaleRoundErrors()+" for binary vector to avoid round off errors!");
         //}
 
-        System.out.println("T:"+this.forBinaryVector+" "+T);
+        //System.out.println("T:"+this.forBinaryVector+" "+T);
         return 0;
     }
 }
