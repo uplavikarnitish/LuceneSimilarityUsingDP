@@ -721,6 +721,8 @@ public class GenerateTFIDFVector {
 
         int err;
         long docIndex = 0;
+        String tfidfRowCorrection = "";
+        String binRowCorrection = "";
 
         if(!(new File(path).isDirectory()))
         {
@@ -788,6 +790,9 @@ public class GenerateTFIDFVector {
                     new Exception().printStackTrace();
                     return null;
                 }
+                tfidfRowCorrection = (new Double(lsi.getRowEffectiveCorrection(docIndex))).toString();
+                binRowCorrection = (new Double(lsi_bin.getRowEffectiveCorrection(docIndex))).toString();
+                System.out.println("Doc:#"+docIndex+"\t tfidfRowCorr:"+tfidfRowCorrection+"\t binRowCorr:"+binRowCorrection);
 
                 //TODO: add code to write [x*(sum of all k dimensions i.e. queryNumDim for doc given by docIndex)] for tfidf and binary vectors to a file say correction separated by newline
                 docIndex++;
@@ -809,7 +814,7 @@ public class GenerateTFIDFVector {
             //TODO: subtract these then from dot products of TFIDF and binary vectors respectively using the homomorphic properties. i.e. convert correction
             //TODO: values to negative (n-c), take E((n-c)), take product with its corresponding ciphertext having dot product.
             if (  (err = nativeCGMPCmbndLib.read_encrypt_vec_from_file_comp_inter_sec_prod(queryNumDim, absEncrTFIDFQueryFileName,
-                   absEncrBinQueryFileName, newFileNameTFIDF, newFileNameBin, opRandAndProdFile, keyFileName, getFloor(123.13), getFloor(454.242442))) != 0)
+                   absEncrBinQueryFileName, newFileNameTFIDF, newFileNameBin, opRandAndProdFile, keyFileName, tfidfRowCorrection, binRowCorrection)) != 0)
             {
                 System.out.println("ERROR in calling nativeCGMPCmbndLib's functn. to compute intermediate product values, err:"+err);
                 return null;

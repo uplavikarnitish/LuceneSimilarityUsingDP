@@ -909,14 +909,83 @@ public class LSI_OjAlgo
         return negCorrection;
     }
 
+    /* Output is a double rounded to its floor value. Basically if you have two docs
+    d1: a,b,c
+    d2: d,e,f
+    negativeCorrection is n
+    and roundCorrection is s
+    and k = 3 for three dimensions.
+    on neg cor you get
+    d1: a+x,b+x,c+x
+    d2: d+x,e+x,f+x
+    on round correction,
+    d1: s(a+x),s(b+x),s(c+x)
+    d2: s(d+x),s(e+x),s(f+x)
+    on dot product you get
+    s^2(ad+be+cf)+s^2(a+b+c)n+s^2(3n^2)+s^2(d+e+f)n
+    if d1 is a constant query then s^2(d+e+f)n is the term that will skew the original dot product ad+be+cf so we need
+    to subtract it, rest of the terms act as constant as query is constant.
 
+    Now input in T is
+    d1: s(a+x),s(b+x),s(c+x)
+    d2: s(d+x),s(e+x),s(f+x)
+    below function computes the magnitude of the term to be subtracted i.e. s^2(d+e+f)n. This would be then subtracted
+    using the C code once encrypted, intermediate dot products have been computed for tfidf and bin respectively.
+    Although the return type is double, it has been rounded to its ceiling value.
+    * */
+    public double getRowEffectiveCorrection(long docIndex)
+    {
+        double rowSum = 0, correction = 0;
+        if ((docIndex >= T.countRows()) || (docIndex<0))
+        {
+            System.err.println("ERROR!!! Document index out of bounds!");
+            return -1;
+        }
+
+        rowSum = getRowSum(T, docIndex);//of form: s(sumOrigRowsB4AnyCorrectn)+s*k*n
+
+        correction = 0;
+        if ( negativeCorrectionAdded == true )
+        {
+            correction = getNegativeCorrection();//Mul by n
+        }
+
+        if ( scaleRoundErrorsMul == true )
+        {
+            correction = correction * getScaleRoundErrors();//Mul by s
+        }
+        correction = correction * T.countColumns();//Mul by k
+
+        if ( rowSum < correction )
+        {
+            System.err.println("WARNING!!! In correction computation");
+        }
+        rowSum = rowSum - correction;//of form:s(sumOrigRowsB4AnyCorrectn)
+
+        if ( negativeCorrectionAdded == true )
+        {
+            correction = rowSum * getNegativeCorrection();//s*(sumofRowB4Ctn)*n
+            if ( scaleRoundErrorsMul == true )
+            {
+                correction = correction * getScaleRoundErrors();//s*(sumOfRowB4Ctn)*n*s
+            }
+        }
+        else
+        {
+            correction = 0;
+        }
+        return (Math.floor(correction));
+
+    }
 
     public int adjustTForCryptoOperations()
     {
         double min, max, absMin, absMax;
-        PrimitiveDenseStore temp;
 
+
+        /*
         //Normalize
+        PrimitiveDenseStore temp;
         System.out.println("T before normalization "+T);
         temp = normalizeMatrix(T);
         if ( temp == null )
@@ -925,9 +994,10 @@ public class LSI_OjAlgo
             return -1;
         }
         System.out.println("T after normalization "+temp);
+        T = temp.get();*/
 
         //Remove negative elements
-        getMinMax(temp);
+        getMinMax(T);
         min = getMin();
         max = getMax();
 
@@ -949,14 +1019,14 @@ public class LSI_OjAlgo
             absMax = max;
         }
         this.negativeCorrection = absMin;
-        System.out.println("T before adjusting for negative correction "+temp);
-        //PrimitiveDenseStore primitiveDenseStore = getFilledOutPrimDensStore(T);
+        System.out.println("T before adjusting for negative correction "+T);
+        PrimitiveDenseStore primitiveDenseStore = getFilledOutPrimDensStore(T);
         if ( min < 0 )
         {
-            addScalar(temp, negativeCorrection);
+            addScalar(primitiveDenseStore, negativeCorrection);
             negativeCorrectionAdded = true;
         }
-        T = temp.get();
+        T = primitiveDenseStore.get();
         System.out.println("T after adjusting for negative correction "+T);
 
         //For binary vectors where elements can have values between 0 to 1, we scale them up. TFIDF does not require this - Modified it does require here -

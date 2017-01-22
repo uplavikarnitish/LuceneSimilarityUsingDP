@@ -18,10 +18,10 @@ JNIEXPORT jint JNICALL Java_preprocess_EncryptNativeC_encrypt_1vec_1to_1file
 /*
  * Class:     preprocess_EncryptNativeC
  * Method:    read_encrypt_vec_from_file_comp_inter_sec_prod
- * Signature: (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I
+ * Signature: (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_preprocess_EncryptNativeC_read_1encrypt_1vec_1from_1file_1comp_1inter_1sec_1prod
-  (JNIEnv *, jobject, jint, jstring, jstring, jstring, jstring, jstring, jstring, jstring, jstring);
+  (JNIEnv *, jobject, jint, jstring, jstring, jstring, jstring, jstring, jstring);
 
 /*
  * Class:     preprocess_EncryptNativeC
