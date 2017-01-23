@@ -18,7 +18,7 @@
 #define KEY_SIZE_BINARY 4096	//n^{2} size
 #define KEY_SIZE_BASE10 2*KEY_SIZE_BINARY*log10(2)
 #define BIG_NUM_SZ KEY_SIZE_BASE10*sizeof(char)
-
+#define J_DOUBLE_SZ_BYTES 2048
 //global encrypt-decryption variables
 mpz_t big_temp;
 mpz_t n;
@@ -61,6 +61,7 @@ int vsize;
 
 void get_random_r_given_modulo( mpz_t random_no, mpz_t modulo );
 
+char buf[J_DOUBLE_SZ_BYTES];
 //assume state has been initialized
 void get_random_r_given_modulo( mpz_t random_no, mpz_t modulo )
 {
@@ -175,11 +176,111 @@ int encrypt_vec_to_file( int vsizelocal, const char * input_file_name, const cha
 
 }
 
+int rem_double_str_effects(char *double_in_str)
+{
+	int len = 0, dot_present = 0, i;
+	if ( double_in_str == NULL )
+	{
+		fprintf(stderr, "%s:%d::ERROR! Bad Pointer!", __func__, __LINE__);
+		return -1;
+	}
+	len = strlen(double_in_str);
+	for ( i=0; i<len; i++ )
+	{
+		if ( double_in_str[i] == '.' )
+		{
+			dot_present = 1;
+			break;
+		}
+	}
+	if ( dot_present == 1 )
+	{
+		double_in_str[i] = '\0';
+	}
+	return 0;
+}
+
+int corr_sub(mpz_t dot_prod, mpz_t corr, mpz_t exp, mpz_t big_temp)
+{
+
+	if ( (dot_prod == NULL) || (corr == NULL) || (exp == NULL) || (big_temp == NULL))
+	{
+		fprintf(stderr, "ERROR! Bad pointer! dot_prod:%p, corr:%p, exp:%p, big_temp:%p", dot_prod, corr, exp, big_temp);
+		return -1;
+	}
+
+	//corr in Z*_n. If corr < 0, this will correct it
+	mpz_mod(corr, corr, n);
+
+	//exp = n-1
+	mpz_set(exp, n);//exp == n
+	mpz_sub_ui(exp, exp, 1);//exp == n-1
+	mpz_mod(exp, exp, n);//exp == n-1 mod n
+
+	//get E(corr)
+	encrypt_big_num(big_temp, corr);//big_temp = E(corr)
+
+	//find E(-corr) = E(corr)^(n-1)
+	mpz_powm(corr, big_temp, exp, n_square);//corr = E(-corr)
+
+	//find correction. E(dot_prod).E(-corr) = E(dot_prod - corr)
+	mpz_mul(dot_prod, dot_prod, corr);
+	mpz_mod(dot_prod, dot_prod, n_square);
+
+	return 0;
+}
+
+int negative_test()
+{
+	mpz_t num;
+	mpz_t zero;
+	mpz_t big_temp;
+	mpz_t big;
+
+	mpz_init(num);
+	mpz_init(zero);
+	mpz_init(big_temp);
+	mpz_init(big);
+
+	encrypt(zero, 0);//0
+	gmp_printf("E(0):%Zd\n\n", zero);
+	encrypt(num, 12313);//E(12313)
+	gmp_printf("E(12313):%Zd\n\n", num);
+
+	mpz_set_ui(big, 12313);
+
+	corr_sub(num, big, zero, big_temp);
+	/*
+	mpz_set(zero, n);
+	mpz_sub_ui(big_temp, zero, 1);
+	mpz_powm(big_temp, num, big_temp, n_square);
+	mpz_set(zero, big_temp);
+	decrypt(zero);
+	mpz_add_ui(zero, zero, 12313);
+	mpz_mod(zero, zero, n);
+	gmp_printf("0?:%Zd\n\n", zero);
+	gmp_printf("E(-12313):%Zd\n\n", big_temp);
+	mpz_mul(zero, num, big_temp);
+	mpz_mod(big_temp, zero, n_square);
+	gmp_printf("E(12313)*E(-12313):%Zd\n\n", big_temp);
+	mpz_set(zero, big_temp);*/
+	decrypt(num);
+	gmp_printf("D(E(12313)*E(-12313)):%Zd\n\n", num);
+
+	
+
+	mpz_clear(num);
+	mpz_clear(zero);
+	mpz_clear(big_temp);
+	mpz_clear(big);
+	return 0;
+}
+
 /*
  * This function reads the encrypted query sent by client, computes the intermediate cosine tfidf product and cosine co-ordination factor,
  * randomizes these two values and writes them along with respective randomizing values into the output_file_name.
  * */
-int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char * input_encr_tfidf_file_name, const char * input_encr_bin_file_name, const char * input_tfidf_vec_file_name, const char * input_bin_vec_file_name, const char * output_file_name, const char * key_file_name)
+int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char * input_encr_tfidf_file_name, const char * input_encr_bin_file_name, const char * input_tfidf_vec_file_name, const char * input_bin_vec_file_name, const char * output_file_name, const char * key_file_name, const char *tfidf_row_corr_str, const char *bin_row_corr_str)
 {
 	int input_size = 0, i, temp, *p_tfidf_vec, *p_bin_vec;
 	mpz_t *vec1;	//holds input encrypted tfidf q values
@@ -196,6 +297,10 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	mpz_t sum_neg_terms;
 	mpz_t rand_prod;
 	mpz_t exponent;
+	mpz_t tfidf_row_corr;
+	mpz_t bin_row_corr;
+	mpz_t big_temp;
+	mpz_t exp;
 	FILE *input_encr_tfidf_file, *input_tfidf_vec_file, *input_bin_vec_file, *output_file, *input_encr_bin_file;
 
 
@@ -243,6 +348,10 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	mpz_init(sum_neg_terms);
 	mpz_init(rand_prod);
 	mpz_init(exponent);
+	mpz_init(tfidf_row_corr);
+	mpz_init(bin_row_corr);
+	mpz_init(big_temp);
+	mpz_init(exp);
 
 	init();
 
@@ -366,6 +475,45 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 		mpz_mod(co_ord_factor, co_ord_factor, n_square);
 	}
 
+	//TODO: Here we add code to incorporate the LSI changes - START
+	if ( (strlen(tfidf_row_corr_str)!=0) ) 
+	{
+		//LSI and there is a correction for tfidf row
+		strncpy(buf, tfidf_row_corr_str, sizeof(J_DOUBLE_SZ_BYTES));
+		rem_double_str_effects(buf);
+		mpz_set_str(tfidf_row_corr, buf, 10);
+		//gmp_fprintf(stderr, "LSI Row correction for TFIDF!\nstr:%s\nmpz:%Zd\n\n", buf, tfidf_row_corr);
+		//gmp_printf("Tfidf dot prod. before: %Zd\n\n", cosine_result);
+		corr_sub(cosine_result, tfidf_row_corr, exp, big_temp);
+		//gmp_printf("Tfidf dot prod. after: %Zd\n\n", cosine_result);
+	}
+	else
+	{
+		//No LSI mode
+		mpz_set_ui(tfidf_row_corr, 0);
+		//gmp_fprintf(stderr, "No LSI Row correction for TFIDF!\nstr:%s\nmpz:%Zd\n\n", tfidf_row_corr_str, tfidf_row_corr);
+	}
+	
+	if ( (strlen(bin_row_corr_str)!=0) )
+	{
+		//LSI and there is a correction for binary row
+		strncpy(buf, bin_row_corr_str, sizeof(J_DOUBLE_SZ_BYTES));
+		rem_double_str_effects(buf);
+		mpz_set_str(bin_row_corr, buf, 10);
+		//gmp_fprintf(stderr, "LSI Row correction for BINARY!\nstr:%s\nmpz:%Zd\n\n", buf, bin_row_corr);
+		//gmp_printf("Binary dot prod. before: %Zd\n\n", co_ord_factor);
+		corr_sub(co_ord_factor, bin_row_corr, exp, big_temp);
+		//gmp_printf("Binary dot prod. after: %Zd\n\n", co_ord_factor);
+	}
+	else
+	{
+		//No LSI mode
+		mpz_set_ui(bin_row_corr, 0);
+		//gmp_fprintf(stderr, "No LSI Row correction for BINARY!\nstr:%s\nmpz:%Zd\n\n", bin_row_corr_str, bin_row_corr);
+	}
+	//TODO: Here we add code to incorporate the LSI changes - END
+
+	//negative_test();
 
 	/*
 	 * Donot decrypt here as we would not be having the CORRESPONDING private key
@@ -374,6 +522,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	//decrypt(cosine_result);
 
 	//TODO: Remove this debug decryption. - START
+	/*
 	mpz_t dot_prod;
 	mpz_init(dot_prod);
 	mpz_t dot_prod2;
@@ -393,6 +542,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 
 	mpz_clear(dot_prod);
 	mpz_clear(dot_prod2);
+	*/
 	//TODO: Remove this debug decryption. - END
 
 	//decrypt the encrypted co ordination factor
@@ -437,7 +587,7 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	//Write r_2 to outputfile
 	mpz_out_str(output_file, 10, random_no_2);
 	fprintf(output_file, "\n");
-	//Calculate randomized cosine tfidf product, MULTIPLYING to add
+	//Calculate randomized cosine binary product, MULTIPLYING to add
 	mpz_mul(co_ord_factor_rand, co_ord_factor, encr_random_no_2);	//E(r_2)
 	//Compute modulus
 	mpz_mod(co_ord_factor_rand, co_ord_factor_rand, n_square);
@@ -544,6 +694,10 @@ int read_encrypt_vec_from_file_comp_inter_sec_prod( int vsizelocal, const char *
 	mpz_clear(sum_neg_terms);
 	mpz_clear(rand_prod);
 	mpz_clear(exponent);
+	mpz_clear(tfidf_row_corr);
+	mpz_clear(bin_row_corr);
+	mpz_clear(big_temp);
+	mpz_clear(exp);
 	clear();
 	free(vec1);
 	free(vec2);
@@ -981,9 +1135,14 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 	return err;
 }
 
+/*
+ * Class:     preprocess_EncryptNativeC
+ * Method:    read_encrypt_vec_from_file_comp_inter_sec_prod
+ * Signature: (ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I
+ */
 
 	JNIEXPORT jint JNICALL Java_preprocess_EncryptNativeC_read_1encrypt_1vec_1from_1file_1comp_1inter_1sec_1prod
-(JNIEnv *env, jobject obj, jint vsize, jstring ip_encr_tfidf_f_name, jstring ip_encr_bin_f_name, jstring ip_unencr_tfidf_f_name, jstring ip_unencr_bin_f_name, jstring op_encr_rand_inter_prod_f_name, jstring ip_key_f_name)
+(JNIEnv *env, jobject obj, jint vsize, jstring ip_encr_tfidf_f_name, jstring ip_encr_bin_f_name, jstring ip_unencr_tfidf_f_name, jstring ip_unencr_bin_f_name, jstring op_encr_rand_inter_prod_f_name, jstring ip_key_f_name, jstring tfidf_row_corr, jstring bin_row_corr)
 {
 	int err = -1;
 	const char *ip_encr_tfidf_q_file 			= (*env)->GetStringUTFChars(env, ip_encr_tfidf_f_name, 0);
@@ -992,6 +1151,8 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 	const char *ip_unencr_bin_file 			= (*env)->GetStringUTFChars(env, ip_unencr_bin_f_name, 0);
 	const char *op_encr_rand_inter_prod_file 	= (*env)->GetStringUTFChars(env, op_encr_rand_inter_prod_f_name, 0);
 	const char *key_file_name 			= (*env)->GetStringUTFChars(env, ip_key_f_name, 0);
+	const char *tfidf_row_corr_str 			= (*env)->GetStringUTFChars(env, tfidf_row_corr, 0);
+	const char *bin_row_corr_str 			= (*env)->GetStringUTFChars(env, bin_row_corr, 0);
 
 
 	//printf("Number of dimensions:%d\n", vsize);
@@ -1004,7 +1165,7 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 
 
 	//Call the function here
-	err = read_encrypt_vec_from_file_comp_inter_sec_prod(vsize, ip_encr_tfidf_q_file, ip_encr_bin_q_file, ip_unencr_tfidf_file, ip_unencr_bin_file, op_encr_rand_inter_prod_file, key_file_name );
+	err = read_encrypt_vec_from_file_comp_inter_sec_prod(vsize, ip_encr_tfidf_q_file, ip_encr_bin_q_file, ip_unencr_tfidf_file, ip_unencr_bin_file, op_encr_rand_inter_prod_file, key_file_name, tfidf_row_corr_str, bin_row_corr_str);
 
 
 	(*env)->ReleaseStringUTFChars(env, ip_encr_tfidf_f_name, ip_encr_tfidf_q_file);
@@ -1013,6 +1174,8 @@ double decrypt_sim_score(const char * input_encr_prod_file_name, const char * ou
 	(*env)->ReleaseStringUTFChars(env, ip_unencr_bin_f_name, ip_unencr_bin_file);
 	(*env)->ReleaseStringUTFChars(env, op_encr_rand_inter_prod_f_name, op_encr_rand_inter_prod_file);
 	(*env)->ReleaseStringUTFChars(env, ip_key_f_name, key_file_name);
+	(*env)->ReleaseStringUTFChars(env, tfidf_row_corr, tfidf_row_corr_str);
+	(*env)->ReleaseStringUTFChars(env, bin_row_corr, bin_row_corr_str);
 
 	return err;
 }
@@ -1070,3 +1233,20 @@ JNIEXPORT jdouble JNICALL Java_preprocess_EncryptNativeC_decrypt_1sim_1score
 	return err;
   }
 
+JNIEXPORT jint JNICALL Java_preprocess_EncryptNativeC_test_func
+  (JNIEnv *env, jobject obj, jint test_no)
+  {
+  	double err = -1;
+
+	mpz_t a;
+	mpz_init(a);
+
+	mpz_set_ui(a, test_no);
+	printf("\nWorking! Test number: %d\n", test_no);
+	gmp_printf("\nWorking! Big number: %Zd\n", a);
+	mpz_clear(a);
+	err = 0;
+
+
+	return err;
+  }
